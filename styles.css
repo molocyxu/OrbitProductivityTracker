@@ -2168,6 +2168,7 @@ input[type="color"]:focus {
   transition: all var(--transition);
   position: relative;
   overflow: hidden;
+  user-select: none;
 }
 
 .calendar-event-item:hover {

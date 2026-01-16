@@ -563,6 +563,25 @@ function bindForms() {
     });
   }
 
+  // Calendar event click handlers (using event delegation)
+  if (elements.calendarWeekGrid) {
+    elements.calendarWeekGrid.addEventListener("click", (event) => {
+      const eventItem = event.target.closest(".calendar-event-item");
+      if (!eventItem) return;
+      
+      const eventId = eventItem.dataset.eventId;
+      if (eventId) {
+        // Close calendar view modal
+        closeCalendarViewModal();
+        // Small delay to allow calendar modal to close smoothly
+        setTimeout(() => {
+          // Open event edit modal
+          fillEventForm(eventId);
+        }, 150);
+      }
+    });
+  }
+
   // Todo modal handlers
   if (elements.addTodoBtn) {
     elements.addTodoBtn.addEventListener("click", () => {
@@ -702,7 +721,7 @@ function bindControls() {
 
   // Load sample day with confirmation
   if (elements.loadSample) {
-    elements.loadSample.addEventListener("click", () => {
+  elements.loadSample.addEventListener("click", () => {
       const confirmed = window.confirm("Load sample day? This will overwrite all current data.");
       if (!confirmed) {
         if (elements.settingsMenuDropdown) {
@@ -710,20 +729,20 @@ function bindControls() {
         }
         return;
       }
-      const sample = getSampleData();
-      state = { ...state, ...sample };
-      saveState();
-      renderAll();
+    const sample = getSampleData();
+    state = { ...state, ...sample };
+    saveState();
+    renderAll();
       if (elements.settingsMenuDropdown) {
         elements.settingsMenuDropdown.classList.remove("visible");
       }
-    });
+  });
   }
 
   // Reset data with confirmation
   if (elements.resetData) {
-    elements.resetData.addEventListener("click", () => {
-      const confirmed = window.confirm("Reset all data for this dashboard?");
+  elements.resetData.addEventListener("click", () => {
+    const confirmed = window.confirm("Reset all data for this dashboard?");
       if (!confirmed) {
         if (elements.settingsMenuDropdown) {
           elements.settingsMenuDropdown.classList.remove("visible");
@@ -731,15 +750,15 @@ function bindControls() {
         return;
       }
       state = { ...defaultState, theme: state.theme, currentStatus: "invisible" };
-      saveState();
-      clearEventForm();
-      clearTodoForm();
-      elements.notesInput.value = "";
-      renderAll();
+    saveState();
+    clearEventForm();
+    clearTodoForm();
+    elements.notesInput.value = "";
+    renderAll();
       if (elements.settingsMenuDropdown) {
         elements.settingsMenuDropdown.classList.remove("visible");
       }
-    });
+  });
   }
 }
 
@@ -1689,6 +1708,41 @@ function sortEventsByDate(a, b) {
   return a.date.localeCompare(b.date);
 }
 
+function sortCalendarEvents(events) {
+  const priorityOrder = { urgent: 0, important: 1, normal: 2 };
+  
+  return events.sort((a, b) => {
+    // 1. Sort by all-day status: all-day events first
+    if (a.allDay !== b.allDay) {
+      return a.allDay ? -1 : 1; // allDay: true comes first
+    }
+    
+    // 2. Sort by priority: urgent > important > normal
+    const priorityA = priorityOrder[a.priority] ?? 2;
+    const priorityB = priorityOrder[b.priority] ?? 2;
+    if (priorityA !== priorityB) {
+      return priorityA - priorityB;
+    }
+    
+    // 3. Sort by start time (only for timed events)
+    if (!a.allDay && !b.allDay) {
+      const startA = timeToMinutes(a.startTime || "00:00");
+      const startB = timeToMinutes(b.startTime || "00:00");
+      if (startA !== startB) {
+        return startA - startB;
+      }
+      
+      // 4. Sort by end time if start times are equal
+      const endA = timeToMinutes(a.endTime || "23:59");
+      const endB = timeToMinutes(b.endTime || "23:59");
+      return endA - endB;
+    }
+    
+    // For all-day events or if times are equal, maintain original order
+    return 0;
+  });
+}
+
 function sortTodosByDate(a, b) {
   const dateA = a.dueDate || a.startDate || "";
   const dateB = b.dueDate || b.startDate || "";
@@ -1858,9 +1912,10 @@ function renderCalendarWeek() {
     elements.calendarViewWeekLabel.textContent = formatWeekRange(currentCalendarWeek);
   }
   
-  // Get all events for this week
+  // Get all events for this week, sorted properly
   const weekEvents = weekDates.map(date => {
-    return state.events.filter(event => shouldEventAppearOnDate(event, date));
+    const dayEvents = state.events.filter(event => shouldEventAppearOnDate(event, date));
+    return sortCalendarEvents(dayEvents);
   });
   
   // Day names
@@ -1913,7 +1968,7 @@ function buildCalendarEventCard(event, date) {
     locationHTML = `<div class="calendar-event-meta"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(event.location)}</div>`;
   }
   
-  return `<div class="calendar-event-item ${event.priority || "normal"} ${status.status}" style="border-left-color:${event.color || "#6c7bff"}">
+  return `<div class="calendar-event-item ${event.priority || "normal"} ${status.status}" data-event-id="${event.id}" style="border-left-color:${event.color || "#6c7bff"}">
       <div class="calendar-event-time">${timeLabel}</div>
       <div class="calendar-event-title">${escapeHtml(event.title)}</div>
       ${locationHTML}
@@ -2014,7 +2069,7 @@ function getSampleData() {
         endTime: "13:00",
         allDay: false,
         priority: "urgent",
-        calendar: "Focus",
+        calendar: "Holiday",
         visibility: "Default",
         reminder: "30 minutes",
         repeat: "None",
