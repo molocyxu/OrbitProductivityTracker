@@ -1,5 +1,6 @@
 const STORAGE_KEY = "orbit_state_v1";
-const PRESETS_STORAGE_KEY = "orbit_presets_v1";
+// Presets are now stored in IndexedDB (see db.js)
+// Migration from localStorage is handled in migration.js
 const INSIGHT_RANGE_DAYS = 7;
 
 const themeOptions = [
@@ -36,63 +37,159 @@ const defaultState = {
 };
 
 const elements = {};
-let state = loadState();
+let state = null; // Will be loaded asynchronously
 let notesTimer = null;
 let currentCalendarWeek = null; // Stores the start date of the currently viewed week (Sunday)
 
-function loadState() {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return { ...defaultState };
-  }
+async function loadState() {
   try {
-    const parsed = JSON.parse(raw);
-    const loaded = { ...defaultState, ...parsed };
-    // Ensure currentStatus exists
-    if (!loaded.currentStatus) {
-      loaded.currentStatus = "invisible";
+    // Try to get state from IndexedDB first (use db.* namespace)
+    if (typeof window.dbGetState === "function") {
+      try {
+        const savedState = await window.dbGetState();
+        if (savedState) {
+          const loaded = { ...defaultState, ...savedState };
+          // Ensure currentStatus exists
+          if (!loaded.currentStatus) {
+            loaded.currentStatus = "invisible";
+          }
+          // Ensure splitSizes exists and has all required keys
+          if (!loaded.splitSizes) {
+            loaded.splitSizes = { ...defaultState.splitSizes };
+          } else {
+            loaded.splitSizes = {
+              ...defaultState.splitSizes,
+              ...loaded.splitSizes
+            };
+          }
+          return loaded;
+        }
+      } catch (e) {
+        console.error("Error loading state from IndexedDB:", e);
+      }
     }
-    // Ensure splitSizes exists and has all required keys
-    if (!loaded.splitSizes) {
-      loaded.splitSizes = { ...defaultState.splitSizes };
-    } else {
-      loaded.splitSizes = {
-        ...defaultState.splitSizes,
-        ...loaded.splitSizes
-      };
+    
+    // Fallback to localStorage if IndexedDB not available or no data
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const loaded = { ...defaultState, ...parsed };
+        // Ensure currentStatus exists
+        if (!loaded.currentStatus) {
+          loaded.currentStatus = "invisible";
+        }
+        // Ensure splitSizes exists and has all required keys
+        if (!loaded.splitSizes) {
+          loaded.splitSizes = { ...defaultState.splitSizes };
+        } else {
+          loaded.splitSizes = {
+            ...defaultState.splitSizes,
+            ...loaded.splitSizes
+          };
+        }
+        return loaded;
+      }
+    } catch (e) {
+      console.error("Error loading state from localStorage:", e);
     }
-    return loaded;
+    
+    // Return default state if nothing found
+    return { ...defaultState };
   } catch (error) {
+    console.error("Error loading state:", error);
     return { ...defaultState };
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+async function saveState() {
+  try {
+    // Save to IndexedDB if available (use db.* namespace)
+    if (typeof window.dbSaveState === "function") {
+      await window.dbSaveState(state);
+    } else {
+      // Fallback to localStorage if IndexedDB not available
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      } catch (error) {
+        if (error.name === "QuotaExceededError") {
+          console.error("localStorage quota exceeded. Please use IndexedDB.");
+          alert("Storage quota exceeded. Please refresh the page to enable IndexedDB.");
+          throw error;
+        }
+        throw error;
+      }
+    }
+  } catch (error) {
+    console.error("Error saving state:", error);
+    // Don't throw - allow app to continue functioning
+    // Error is already logged
+  }
 }
 
-function init() {
-  cacheElements();
-  initThemeSelect();
-  initColorPalette();
-  initSplitPanels();
-  bindForms();
-  bindLists();
-  bindControls();
-  initNotes();
-  clearEventForm();
-  clearTodoForm();
-  updateFileInputLabel();
-  applyTheme(state.theme);
-  updateClock();
-  renderAll();
-  setInterval(updateClock, 1000);
-  setInterval(() => {
-    renderEvents();
-    renderTomorrowEvents();
-    renderInsights();
-    renderMetrics();
-  }, 60000);
+async function init() {
+  try {
+    // Initialize migrations from localStorage to IndexedDB
+    // This must run before loading state or any preset operations
+    if (typeof initPresetMigration === "function") {
+      await initPresetMigration();
+    }
+    
+    // Load state from IndexedDB (or localStorage fallback)
+    state = await loadState();
+    
+    // Ensure state is not null - use default if something went wrong
+    if (!state) {
+      console.warn("State is null, using default state");
+      state = { ...defaultState };
+    }
+    
+    cacheElements();
+    initThemeSelect();
+    initColorPalette();
+    initSplitPanels();
+    bindForms();
+    bindLists();
+    bindControls();
+    initNotes();
+    clearEventForm();
+    clearTodoForm();
+    updateFileInputLabel();
+    applyTheme(state.theme);
+    updateClock();
+    renderAll();
+    setInterval(updateClock, 1000);
+    setInterval(() => {
+      renderEvents();
+      renderTomorrowEvents();
+      renderInsights();
+      renderMetrics();
+    }, 60000);
+  } catch (error) {
+    console.error("Error during initialization:", error);
+    // Fallback: use default state if initialization fails
+    if (!state) {
+      state = { ...defaultState };
+      try {
+        cacheElements();
+        initThemeSelect();
+        initColorPalette();
+        initSplitPanels();
+        bindForms();
+        bindLists();
+        bindControls();
+        initNotes();
+        clearEventForm();
+        clearTodoForm();
+        updateFileInputLabel();
+        applyTheme(state.theme);
+        updateClock();
+        renderAll();
+      } catch (fallbackError) {
+        console.error("Error in fallback initialization:", fallbackError);
+      }
+    }
+  }
 }
 
 function cacheElements() {
@@ -547,7 +644,7 @@ function bindForms() {
     });
     }
       
-    saveState();
+    await saveState();
     elements.statusForm.reset();
       elements.statusEditId.value = "";
       updateFileInputLabel();
@@ -899,7 +996,7 @@ function bindControls() {
 
   // Reset data with confirmation
   if (elements.resetData) {
-    elements.resetData.addEventListener("click", () => {
+  elements.resetData.addEventListener("click", () => {
       openConfirmModal({
         title: "Reset all data",
         message: "Are you sure you want to reset all data for this dashboard? This cannot be undone.",
@@ -907,11 +1004,11 @@ function bindControls() {
         confirmText: "Reset",
         onConfirm: () => {
           state = { ...defaultState, theme: state.theme, currentStatus: "invisible" };
-          saveState();
-          clearEventForm();
-          clearTodoForm();
-          elements.notesInput.value = "";
-          renderAll();
+    saveState();
+    clearEventForm();
+    clearTodoForm();
+    elements.notesInput.value = "";
+    renderAll();
           if (elements.settingsMenuDropdown) {
             elements.settingsMenuDropdown.classList.remove("visible");
           }
@@ -2311,89 +2408,124 @@ function updateFileInputLabel() {
   }
 }
 
-// Preset Management Functions
-function getPresets() {
+// Preset Management Functions (now using IndexedDB via db.js)
+// Use the db.* namespace functions from db.js to avoid recursion
+// db.js exposes functions as window.dbGetPresets, window.dbSavePreset, etc.
+
+async function getPresets() {
   try {
-    const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw);
+    // Use IndexedDB function from db.js (use db.* namespace to avoid recursion)
+    if (window.dbGetPresets && typeof window.dbGetPresets === "function") {
+      return await window.dbGetPresets();
+    }
+    
+    // Fallback to localStorage if IndexedDB not available
+    try {
+      const raw = localStorage.getItem("orbit_presets_v1");
+      if (!raw) return {};
+      return JSON.parse(raw);
+    } catch (e) {
+      return {};
+    }
   } catch (error) {
     console.error("Error loading presets:", error);
     return {};
   }
 }
 
-function savePresets(presets) {
+async function savePreset(name) {
   try {
-    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
-  } catch (error) {
-    console.error("Error saving presets:", error);
-    if (error.name === "QuotaExceededError") {
-      alert("Storage quota exceeded. Please delete some presets or clear space.");
+    // Create a complete snapshot of the current state
+    const presetData = {
+      name: name,
+      savedAt: new Date().toISOString(),
+      state: {
+        events: state.events,
+        todos: state.todos,
+        statuses: state.statuses,
+        notes: state.notes,
+        currentStatus: state.currentStatus,
+        splitSizes: state.splitSizes,
+        showFullTodoList: state.showFullTodoList,
+        theme: state.theme
+      }
+    };
+    
+    // Use IndexedDB function from db.js (use db.* namespace to avoid recursion)
+    if (window.dbSavePreset && typeof window.dbSavePreset === "function") {
+      await window.dbSavePreset(name, presetData);
+    } else {
+      throw new Error("IndexedDB functions not available");
     }
-  }
-}
-
-function savePreset(name) {
-  const presets = getPresets();
-  
-  // Create a complete snapshot of the current state
-  const presetData = {
-    name: name,
-    savedAt: new Date().toISOString(),
-    state: {
-      events: state.events,
-      todos: state.todos,
-      statuses: state.statuses,
-      notes: state.notes,
-      currentStatus: state.currentStatus,
-      splitSizes: state.splitSizes,
-      showFullTodoList: state.showFullTodoList,
-      theme: state.theme
-    }
-  };
-  
-  presets[name] = presetData;
-  savePresets(presets);
-  
-  // Show success feedback
-  if (elements.savePresetConfirm) {
-    const confirmBtn = elements.savePresetConfirm;
-    const originalHTML = confirmBtn.innerHTML;
-    confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> <span>Saved!</span>';
-    confirmBtn.style.background = "#22c55e";
-    setTimeout(() => {
-      confirmBtn.innerHTML = originalHTML;
-      confirmBtn.style.background = "";
+    
+    // Show success feedback
+    if (elements.savePresetConfirm) {
+      const confirmBtn = elements.savePresetConfirm;
+      const originalHTML = confirmBtn.innerHTML;
+      const originalBackground = confirmBtn.style.background;
+      confirmBtn.innerHTML = '<i class="fa-solid fa-check"></i> <span>Saved!</span>';
+      confirmBtn.style.background = "#22c55e";
+      setTimeout(() => {
+        confirmBtn.innerHTML = originalHTML;
+        confirmBtn.style.background = originalBackground;
+        closeSavePresetModal();
+      }, 1500);
+    } else {
       closeSavePresetModal();
-    }, 1500);
-  } else {
-    closeSavePresetModal();
-  }
-  
-  // Refresh preset list if load modal is open
-  if (elements.loadPresetModal && elements.loadPresetModal.classList.contains("visible")) {
-    renderPresetList();
+    }
+    
+    // Refresh preset list if load modal is open
+    if (elements.loadPresetModal && elements.loadPresetModal.classList.contains("visible")) {
+      await renderPresetList();
+    }
+  } catch (error) {
+    console.error("Error saving preset:", error);
+    
+    // Show error feedback in the modal instead of browser alert
+    if (elements.savePresetConfirm) {
+      const confirmBtn = elements.savePresetConfirm;
+      const originalHTML = confirmBtn.innerHTML;
+      const originalBackground = confirmBtn.style.background;
+      confirmBtn.innerHTML = '<i class="fa-solid fa-xmark"></i> <span>Failed!</span>';
+      confirmBtn.style.background = "#ef4444";
+      confirmBtn.disabled = true;
+      
+      setTimeout(() => {
+        confirmBtn.innerHTML = originalHTML;
+        confirmBtn.style.background = originalBackground;
+        confirmBtn.disabled = false;
+      }, 3000);
+    } else {
+      alert("Failed to save preset. Please try again.");
+    }
   }
 }
 
-function loadPreset(name) {
-  const presets = getPresets();
-  const preset = presets[name];
-  
-  if (!preset || !preset.state) {
-    alert("Preset not found or corrupted.");
-    return;
-  }
-  
-  // Restore state
-  state = {
-    ...defaultState,
-    ...preset.state,
-    theme: state.theme // Preserve current theme
-  };
-  
-  saveState();
+async function loadPreset(name) {
+  try {
+    let preset = null;
+    
+    // Use IndexedDB function from db.js (use db.* namespace to avoid recursion)
+    if (window.dbGetPreset && typeof window.dbGetPreset === "function") {
+      preset = await window.dbGetPreset(name);
+    } else {
+      const presets = await getPresets();
+      preset = presets[name];
+    }
+    
+    if (!preset || !preset.state) {
+      alert("Preset not found or corrupted.");
+      return;
+    }
+    
+    // Restore state
+    state = {
+      ...defaultState,
+      ...preset.state,
+      theme: state.theme // Preserve current theme
+    };
+    
+  await saveState();
   clearEventForm();
   clearTodoForm();
   if (elements.notesInput) {
@@ -2401,13 +2533,25 @@ function loadPreset(name) {
   }
   renderAll();
   closeLoadPresetModal();
+  } catch (error) {
+    console.error("Error loading preset:", error);
+    alert("Failed to load preset. Please try again.");
+  }
 }
 
-function deletePreset(name) {
-  const presets = getPresets();
-  delete presets[name];
-  savePresets(presets);
-  renderPresetList();
+async function deletePreset(name) {
+  try {
+    // Use IndexedDB function from db.js (use db.* namespace to avoid recursion)
+    if (window.dbDeletePreset && typeof window.dbDeletePreset === "function") {
+      await window.dbDeletePreset(name);
+    } else {
+      throw new Error("IndexedDB functions not available");
+    }
+    await renderPresetList();
+  } catch (error) {
+    console.error("Error deleting preset:", error);
+    alert("Failed to delete preset. Please try again.");
+  }
 }
 
 function openSavePresetModal() {
@@ -2434,12 +2578,12 @@ function closeSavePresetModal() {
   }
 }
 
-function openLoadPresetModal() {
+async function openLoadPresetModal() {
   if (!elements.loadPresetModal) {
     console.error("Load preset modal element not found");
     return;
   }
-  renderPresetList();
+  await renderPresetList();
   elements.loadPresetModal.classList.add("visible");
   elements.loadPresetModal.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
@@ -2452,10 +2596,10 @@ function closeLoadPresetModal() {
   document.body.style.overflow = "";
 }
 
-function renderPresetList() {
+async function renderPresetList() {
   if (!elements.presetList) return;
   
-  const presets = getPresets();
+  const presets = await getPresets();
   const presetNames = Object.keys(presets).sort((a, b) => {
     const dateA = new Date(presets[a].savedAt || 0);
     const dateB = new Date(presets[b].savedAt || 0);
@@ -2513,6 +2657,8 @@ function renderPresetList() {
       const presetName = button.dataset.presetName;
       
       if (action === "load") {
+        // Close the load preset modal before showing confirmation
+        closeLoadPresetModal();
         openConfirmModal({
           title: "Load workspace",
           message: `Load "${presetName}"? This will overwrite your current workspace.`,
@@ -2523,6 +2669,8 @@ function renderPresetList() {
           }
         });
       } else if (action === "delete") {
+        // Close the load preset modal before showing confirmation
+        closeLoadPresetModal();
         openConfirmModal({
           title: "Delete workspace",
           message: `Are you sure you want to delete "${presetName}"?`,
