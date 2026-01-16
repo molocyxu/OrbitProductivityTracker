@@ -24,7 +24,13 @@ const defaultState = {
   events: [],
   todos: [],
   statuses: [],
-  notes: ""
+  notes: "",
+  currentStatus: "invisible",
+  splitSizes: {
+    main: [76, 24],
+    calendarTodo: [60, 40],
+    rightColumn: [30, 34, 36]
+  }
 };
 
 const elements = {};
@@ -38,7 +44,21 @@ function loadState() {
   }
   try {
     const parsed = JSON.parse(raw);
-    return { ...defaultState, ...parsed };
+    const loaded = { ...defaultState, ...parsed };
+    // Ensure currentStatus exists
+    if (!loaded.currentStatus) {
+      loaded.currentStatus = "invisible";
+    }
+    // Ensure splitSizes exists and has all required keys
+    if (!loaded.splitSizes) {
+      loaded.splitSizes = { ...defaultState.splitSizes };
+    } else {
+      loaded.splitSizes = {
+        ...defaultState.splitSizes,
+        ...loaded.splitSizes
+      };
+    }
+    return loaded;
   } catch (error) {
     return { ...defaultState };
   }
@@ -59,12 +79,14 @@ function init() {
   initNotes();
   clearEventForm();
   clearTodoForm();
+  updateFileInputLabel();
   applyTheme(state.theme);
   updateClock();
   renderAll();
   setInterval(updateClock, 1000);
   setInterval(() => {
     renderEvents();
+    renderTomorrowEvents();
     renderInsights();
     renderMetrics();
   }, 60000);
@@ -86,6 +108,7 @@ function cacheElements() {
   elements.eventVisibility = document.getElementById("event-visibility");
   elements.eventReminder = document.getElementById("event-reminder");
   elements.eventRepeat = document.getElementById("event-repeat");
+  elements.customRepeatDays = document.getElementById("custom-repeat-days");
   elements.eventLocation = document.getElementById("event-location");
   elements.eventLink = document.getElementById("event-link");
   elements.eventGuests = document.getElementById("event-guests");
@@ -97,6 +120,9 @@ function cacheElements() {
   elements.eventSubtitle = document.getElementById("event-subtitle");
   elements.eventClear = document.getElementById("event-clear");
   elements.calendarSummary = document.getElementById("calendar-summary");
+  elements.tomorrowEventList = document.getElementById("tomorrow-event-list");
+  elements.tomorrowEventCount = document.getElementById("tomorrow-event-count");
+  elements.tomorrowSubtitle = document.getElementById("tomorrow-subtitle");
   elements.todoForm = document.getElementById("todo-form");
   elements.todoId = document.getElementById("todo-id");
   elements.todoTitle = document.getElementById("todo-title");
@@ -113,8 +139,31 @@ function cacheElements() {
   elements.statusLabel = document.getElementById("status-label");
   elements.statusColor = document.getElementById("status-color");
   elements.statusImage = document.getElementById("status-image");
-  elements.statusList = document.getElementById("status-list");
-  elements.statusSummary = document.getElementById("status-summary");
+  elements.statusDisplay = document.getElementById("status-display");
+  elements.statusSelector = document.getElementById("status-selector");
+  elements.addStatusBtn = document.getElementById("add-status-btn");
+  elements.editStatusBtn = document.getElementById("edit-status-btn");
+  elements.statusModal = document.getElementById("status-modal");
+  elements.statusModalClose = document.getElementById("status-modal-close");
+  elements.statusFormCancel = document.getElementById("status-form-cancel");
+  elements.statusEditId = document.getElementById("status-edit-id");
+  elements.statusModalTitle = document.getElementById("status-modal-title");
+  elements.statusFormSubmit = document.getElementById("status-form-submit");
+  elements.statusFormSubmitText = document.getElementById("status-form-submit-text");
+  elements.statusEditModal = document.getElementById("status-edit-modal");
+  elements.statusEditModalClose = document.getElementById("status-edit-modal-close");
+  elements.statusEditModalCloseBtn = document.getElementById("status-edit-modal-close-btn");
+  elements.statusEditList = document.getElementById("status-edit-list");
+  elements.addEventBtn = document.getElementById("add-event-btn");
+  elements.eventModal = document.getElementById("event-modal");
+  elements.eventModalClose = document.getElementById("event-modal-close");
+  elements.eventModalTitle = document.getElementById("event-modal-title");
+  elements.eventFormSubmitText = document.getElementById("event-form-submit-text");
+  elements.addTodoBtn = document.getElementById("add-todo-btn");
+  elements.todoModal = document.getElementById("todo-modal");
+  elements.todoModalClose = document.getElementById("todo-modal-close");
+  elements.todoModalTitle = document.getElementById("todo-modal-title");
+  elements.todoFormSubmitText = document.getElementById("todo-form-submit-text");
   elements.urgentEvents = document.getElementById("urgent-events");
   elements.dueSoon = document.getElementById("due-soon");
   elements.insightSummary = document.getElementById("insight-summary");
@@ -153,17 +202,123 @@ function initColorPalette() {
 
 function initSplitPanels() {
   if (typeof Split !== "function") return;
-  Split(["#calendar-column", "#todo-column", "#right-column"], {
-    sizes: [46, 32, 22],
+  
+  // Ensure splitSizes exists in state
+  if (!state.splitSizes) {
+    state.splitSizes = { ...defaultState.splitSizes };
+  }
+  
+  // Main horizontal split between left section and right column
+  const mainSplit = Split([".left-section", "#right-column"], {
+    sizes: state.splitSizes.main || [76, 24],
+    minSize: [400, 320],
+    gutterSize: 12,
+    gutter: (index, direction) => {
+      const gutter = document.createElement("div");
+      gutter.className = `gutter gutter-${direction}`;
+      return gutter;
+    },
+    onDrag: () => {
+      document.body.style.cursor = "col-resize";
+    },
+    onDragEnd: () => {
+      document.body.style.cursor = "";
+      if (mainSplit) {
+        state.splitSizes.main = mainSplit.getSizes();
+        saveState();
+      }
+    }
+  });
+  
+  // Horizontal split for calendar and todo columns
+  const calendarTodoSplit = Split(["#calendar-column", "#todo-column"], {
+    sizes: state.splitSizes.calendarTodo || [60, 40],
     minSize: 280,
-    gutterSize: 12
+    gutterSize: 12,
+    gutter: (index, direction) => {
+      const gutter = document.createElement("div");
+      gutter.className = `gutter gutter-${direction}`;
+      return gutter;
+    },
+    onDrag: () => {
+      document.body.style.cursor = "col-resize";
+    },
+    onDragEnd: () => {
+      document.body.style.cursor = "";
+      if (calendarTodoSplit) {
+        state.splitSizes.calendarTodo = calendarTodoSplit.getSizes();
+        saveState();
+      }
+    }
   });
-  Split(["#status-panel", "#insights-panel", "#notes-panel"], {
+  
+  // Vertical split for right column panels
+  // Wait a bit to ensure DOM is ready and other splits are initialized
+  setTimeout(() => {
+    const statusPanel = document.getElementById("status-panel");
+    const insightsPanel = document.getElementById("insights-panel");
+    const notesPanel = document.getElementById("notes-panel");
+    const rightColumn = document.getElementById("right-column");
+    
+    if (statusPanel && insightsPanel && notesPanel && rightColumn) {
+      // Ensure right column has proper height
+      rightColumn.style.height = "100%";
+      
+      const verticalSplit = Split(["#status-panel", "#insights-panel", "#notes-panel"], {
     direction: "vertical",
-    sizes: [30, 34, 36],
+    sizes: state.splitSizes.rightColumn || [30, 34, 36],
     minSize: 160,
-    gutterSize: 12
-  });
+        gutterSize: 12,
+        snapOffset: 0,
+        expandToMin: false,
+        gutter: (index, direction) => {
+          const gutter = document.createElement("div");
+          gutter.className = `gutter gutter-${direction}`;
+          gutter.style.display = "block";
+          gutter.style.visibility = "visible";
+          gutter.style.flexShrink = "0";
+          return gutter;
+        },
+        onDrag: () => {
+          document.body.style.cursor = "row-resize";
+        },
+        onDragEnd: () => {
+          document.body.style.cursor = "";
+          if (verticalSplit) {
+            state.splitSizes.rightColumn = verticalSplit.getSizes();
+            saveState();
+          }
+        },
+        onDragStart: () => {
+          // Ensure panels don't have flex interfering
+          [statusPanel, insightsPanel, notesPanel].forEach(panel => {
+            panel.style.flex = "none";
+          });
+        }
+      });
+      
+      // Force update to ensure gutters are visible
+      if (verticalSplit) {
+        setTimeout(() => {
+          const gutters = rightColumn.querySelectorAll(".gutter.gutter-vertical");
+          gutters.forEach(gutter => {
+            gutter.style.display = "block";
+            gutter.style.visibility = "visible";
+            gutter.style.opacity = "1";
+          });
+        }, 50);
+      }
+    }
+  }, 200);
+  
+  // Ensure all gutters are visible
+  setTimeout(() => {
+    const gutters = document.querySelectorAll(".gutter");
+    gutters.forEach(gutter => {
+      gutter.style.display = "block";
+      gutter.style.visibility = "visible";
+    });
+  }, 100);
 }
 
 function bindForms() {
@@ -180,8 +335,10 @@ function bindForms() {
     saveState();
     clearEventForm();
     renderEvents();
+    renderTomorrowEvents();
     renderInsights();
     renderMetrics();
+    closeEventModal();
   });
 
   elements.eventClear.addEventListener("click", clearEventForm);
@@ -190,6 +347,18 @@ function bindForms() {
     elements.eventStart.disabled = disabled;
     elements.eventEnd.disabled = disabled;
   });
+
+  // Handle custom repeat days
+  if (elements.eventRepeat) {
+    elements.eventRepeat.addEventListener("change", () => {
+      if (elements.customRepeatDays) {
+        elements.customRepeatDays.style.display = elements.eventRepeat.value === "Custom" ? "block" : "none";
+        if (elements.eventRepeat.value !== "Custom") {
+          clearCustomRepeatDays();
+        }
+      }
+    });
+  }
 
   elements.todoForm.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -206,6 +375,7 @@ function bindForms() {
     renderTodos();
     renderInsights();
     renderMetrics();
+    closeTodoModal();
   });
 
   elements.todoClear.addEventListener("click", clearTodoForm);
@@ -215,6 +385,21 @@ function bindForms() {
     const label = elements.statusLabel.value.trim();
     if (!label) return;
     const imageData = await readFile(elements.statusImage.files[0]);
+    const editId = elements.statusEditId.value;
+    
+    if (editId) {
+      // Edit existing status
+      const index = state.statuses.findIndex(s => s.id === editId);
+      if (index >= 0) {
+        state.statuses[index] = {
+          ...state.statuses[index],
+          label,
+          color: elements.statusColor.value,
+          image: imageData || state.statuses[index].image
+        };
+      }
+    } else {
+      // Add new status
     state.statuses.unshift({
       id: createId(),
       label,
@@ -222,10 +407,112 @@ function bindForms() {
       image: imageData || "",
       createdAt: new Date().toISOString()
     });
+    }
+    
     saveState();
     elements.statusForm.reset();
-    renderStatuses();
+    elements.statusEditId.value = "";
+    updateFileInputLabel();
+    closeStatusModal();
+    renderStatusSelector();
+    renderStatusDisplay();
+    if (elements.statusEditList) {
+      renderStatusEditList();
+    }
   });
+
+  // Update file input label when file is selected
+  if (elements.statusImage) {
+    elements.statusImage.addEventListener("change", (event) => {
+      updateFileInputLabel();
+    });
+  }
+
+  // Status modal controls
+  if (elements.addStatusBtn) {
+    elements.addStatusBtn.addEventListener("click", () => openStatusModal(false));
+  }
+
+  if (elements.editStatusBtn) {
+    elements.editStatusBtn.addEventListener("click", openStatusEditModal);
+  }
+
+  if (elements.statusModalClose) {
+    elements.statusModalClose.addEventListener("click", closeStatusModal);
+  }
+
+  if (elements.statusFormCancel) {
+    elements.statusFormCancel.addEventListener("click", closeStatusModal);
+  }
+
+  // Close modal on overlay click
+  if (elements.statusModal) {
+    const overlay = elements.statusModal.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", closeStatusModal);
+    }
+  }
+
+  if (elements.statusEditModalClose) {
+    elements.statusEditModalClose.addEventListener("click", closeStatusEditModal);
+  }
+
+  if (elements.statusEditModalCloseBtn) {
+    elements.statusEditModalCloseBtn.addEventListener("click", closeStatusEditModal);
+  }
+
+  if (elements.statusEditModal) {
+    const overlay = elements.statusEditModal.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", closeStatusEditModal);
+    }
+  }
+
+  // Status selector change
+  if (elements.statusSelector) {
+    elements.statusSelector.addEventListener("change", (event) => {
+      state.currentStatus = event.target.value;
+      saveState();
+      renderStatusSelector();
+      renderStatusDisplay();
+    });
+  }
+
+  // Event modal handlers
+  if (elements.addEventBtn) {
+    elements.addEventBtn.addEventListener("click", () => {
+      openEventModal();
+    });
+  }
+
+  if (elements.eventModalClose) {
+    elements.eventModalClose.addEventListener("click", closeEventModal);
+  }
+
+  if (elements.eventModal) {
+    const overlay = elements.eventModal.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", closeEventModal);
+    }
+  }
+
+  // Todo modal handlers
+  if (elements.addTodoBtn) {
+    elements.addTodoBtn.addEventListener("click", () => {
+      openTodoModal();
+    });
+  }
+
+  if (elements.todoModalClose) {
+    elements.todoModalClose.addEventListener("click", closeTodoModal);
+  }
+
+  if (elements.todoModal) {
+    const overlay = elements.todoModal.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", closeTodoModal);
+    }
+  }
 }
 
 function bindLists() {
@@ -243,6 +530,7 @@ function bindLists() {
       state.events = state.events.filter((item) => item.id !== id);
       saveState();
       renderEvents();
+      renderTomorrowEvents();
       renderInsights();
       renderMetrics();
     }
@@ -270,14 +558,6 @@ function bindLists() {
     }
   });
 
-  elements.statusList.addEventListener("click", (event) => {
-    const actionButton = event.target.closest("[data-action]");
-    if (!actionButton) return;
-    const id = actionButton.dataset.id;
-    state.statuses = state.statuses.filter((item) => item.id !== id);
-    saveState();
-    renderStatuses();
-  });
 
   elements.eventList.addEventListener("pointerover", (event) => {
     const card = event.target.closest(".event-card");
@@ -318,7 +598,7 @@ function bindControls() {
   elements.resetData.addEventListener("click", () => {
     const confirmed = window.confirm("Reset all data for this dashboard?");
     if (!confirmed) return;
-    state = { ...defaultState, theme: state.theme };
+    state = { ...defaultState, theme: state.theme, currentStatus: "invisible" };
     saveState();
     clearEventForm();
     clearTodoForm();
@@ -356,10 +636,15 @@ function updateClock() {
 
 function renderAll() {
   renderEvents();
+  renderTomorrowEvents();
   renderTodos();
-  renderStatuses();
+  renderStatusSelector();
+  renderStatusDisplay();
   renderInsights();
   renderMetrics();
+  if (elements.statusEditList && elements.statusEditModal?.classList.contains("visible")) {
+    renderStatusEditList();
+  }
 }
 
 function renderEvents() {
@@ -367,7 +652,7 @@ function renderEvents() {
   const list = elements.eventList;
   const scroll = list.scrollTop;
   const todaysEvents = state.events
-    .filter((item) => item.date === today)
+    .filter((item) => shouldEventAppearOnDate(item, today))
     .sort(sortEventsByTime);
   if (!todaysEvents.length) {
     list.innerHTML = `<div class="empty-state">No events yet. Add one above.</div>`;
@@ -382,6 +667,41 @@ function renderEvents() {
   elements.calendarSummary.textContent = todaysEvents.length
     ? `${todaysEvents.length} today · ${runningCount} live`
     : "No events";
+}
+
+function renderTomorrowEvents() {
+  const tomorrow = getTomorrowISO();
+  if (!elements.tomorrowEventList) return;
+  
+  const list = elements.tomorrowEventList;
+  const scroll = list.scrollTop;
+  const tomorrowEvents = state.events
+    .filter((item) => shouldEventAppearOnDate(item, tomorrow))
+    .sort(sortEventsByTime);
+  
+  if (!tomorrowEvents.length) {
+    list.innerHTML = `<div class="empty-state">No events scheduled for tomorrow.</div>`;
+  } else {
+    list.innerHTML = tomorrowEvents.map((event) => buildEventCard(event)).join("");
+  }
+  list.scrollTop = scroll;
+  
+  if (elements.tomorrowEventCount) {
+    elements.tomorrowEventCount.textContent = `${tomorrowEvents.length} event${tomorrowEvents.length === 1 ? "" : "s"}`;
+  }
+  
+  if (elements.tomorrowSubtitle) {
+    const urgentCount = tomorrowEvents.filter((item) => item.priority === "urgent").length;
+    const importantCount = tomorrowEvents.filter((item) => item.priority === "important").length;
+    
+    if (urgentCount > 0) {
+      elements.tomorrowSubtitle.textContent = `${urgentCount} urgent event${urgentCount === 1 ? "" : "s"}`;
+    } else if (importantCount > 0) {
+      elements.tomorrowSubtitle.textContent = `${importantCount} important event${importantCount === 1 ? "" : "s"}`;
+    } else {
+      elements.tomorrowSubtitle.textContent = "";
+    }
+  }
 }
 
 function renderTodos() {
@@ -401,51 +721,289 @@ function renderTodos() {
     : "No tasks";
 }
 
-function renderStatuses() {
-  const list = elements.statusList;
-  if (!state.statuses.length) {
-    list.innerHTML = `<div class="empty-state">Add a status to get started.</div>`;
+function renderStatusSelector() {
+  if (!elements.statusSelector) return;
+  
+  const currentValue = state.currentStatus || "invisible";
+  const options = ['<option value="invisible" style="color: var(--muted);">Invisible</option>'];
+  
+  state.statuses.forEach((status) => {
+    options.push(
+      `<option value="${status.id}" style="color:${status.color}">${escapeHtml(status.label)}</option>`
+    );
+  });
+  
+  elements.statusSelector.innerHTML = options.join("");
+  elements.statusSelector.value = currentValue;
+  
+  // Update selector border color to match selected status
+  if (currentValue !== "invisible") {
+    const selectedStatus = state.statuses.find(s => s.id === currentValue);
+    if (selectedStatus) {
+      elements.statusSelector.style.borderColor = selectedStatus.color;
   } else {
-    list.innerHTML = state.statuses
-      .map((status) => {
-        const imageMarkup = status.image
-          ? `<img src="${status.image}" alt="${escapeHtml(status.label)} image" />`
-          : "";
+      elements.statusSelector.style.borderColor = "rgba(255, 255, 255, 0.1)";
+    }
+  } else {
+    elements.statusSelector.style.borderColor = "rgba(255, 255, 255, 0.1)";
+  }
+}
+
+function renderStatusDisplay() {
+  if (!elements.statusDisplay) return;
+  
+  const currentStatusId = state.currentStatus || "invisible";
+  
+  if (currentStatusId === "invisible") {
+    elements.statusDisplay.innerHTML = "";
+    elements.statusDisplay.style.display = "none";
+    return;
+  }
+  
+  const status = state.statuses.find((s) => s.id === currentStatusId);
+  if (!status) {
+    state.currentStatus = "invisible";
+    saveState();
+    renderStatusDisplay();
+    return;
+  }
+  
+  // Only show image if it exists
+  if (status.image) {
+    elements.statusDisplay.innerHTML = `
+      <div class="status-display-content">
+        <div class="status-display-image">
+          <img src="${status.image}" alt="${escapeHtml(status.label)}" class="status-display-img" />
+        </div>
+      </div>
+    `;
+    elements.statusDisplay.style.display = "flex";
+  } else {
+    elements.statusDisplay.innerHTML = "";
+    elements.statusDisplay.style.display = "none";
+  }
+}
+
+function openStatusModal(isEdit = false, statusId = null) {
+  if (!elements.statusModal) return;
+  
+  if (isEdit && statusId) {
+    const status = state.statuses.find(s => s.id === statusId);
+    if (status) {
+      elements.statusEditId.value = status.id;
+      elements.statusLabel.value = status.label;
+      elements.statusColor.value = status.color;
+      elements.statusModalTitle.textContent = "Edit status";
+      elements.statusFormSubmitText.textContent = "Save changes";
+      elements.statusFormSubmit.querySelector("i").className = "fa-solid fa-check";
+    }
+  } else {
+    elements.statusEditId.value = "";
+    elements.statusModalTitle.textContent = "Add new status";
+    elements.statusFormSubmitText.textContent = "Add status";
+    elements.statusFormSubmit.querySelector("i").className = "fa-solid fa-plus";
+  }
+  
+  elements.statusModal.classList.add("visible");
+  elements.statusModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeStatusModal() {
+  if (!elements.statusModal) return;
+  elements.statusModal.classList.remove("visible");
+  elements.statusModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  elements.statusForm.reset();
+  elements.statusEditId.value = "";
+  updateFileInputLabel();
+}
+
+function openStatusEditModal() {
+  if (!elements.statusEditModal) return;
+  renderStatusEditList();
+  bindStatusEditListEvents();
+  elements.statusEditModal.classList.add("visible");
+  elements.statusEditModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeStatusEditModal() {
+  if (!elements.statusEditModal) return;
+  elements.statusEditModal.classList.remove("visible");
+  elements.statusEditModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function renderStatusEditList() {
+  if (!elements.statusEditList) return;
+  
+  // Create array with Invisible status first, then all other statuses
+  const allStatuses = [
+    { id: "invisible", label: "Invisible", color: "var(--muted)", image: "", isInvisible: true }
+  ].concat(state.statuses);
+  
+  elements.statusEditList.innerHTML = allStatuses.map((status, index) => {
+    const isInvisible = status.isInvisible || status.id === "invisible";
+    const imagePreview = status.image 
+      ? `<img src="${status.image}" alt="${escapeHtml(status.label)}" class="status-edit-image-preview" />`
+      : '<div class="status-edit-image-preview-empty">No image</div>';
+    
+    const canMoveUp = index > 0;
+    const canMoveDown = !isInvisible && index < allStatuses.length - 1;
+    const canDelete = !isInvisible;
+    const canEdit = !isInvisible;
+    
         return `
-          <div class="status-card" style="border-color:${status.color}">
-            <div class="status-header">
-              <span class="status-label">${escapeHtml(status.label)}</span>
-              <button class="icon-button" data-action="delete-status" data-id="${status.id}" title="Remove">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
+      <div class="status-edit-item ${isInvisible ? 'status-edit-item-invisible' : ''}" data-id="${status.id}">
+        <div class="status-edit-item-handle">
+          <i class="fa-solid fa-grip-vertical"></i>
+        </div>
+        <div class="status-edit-item-content">
+          <div class="status-edit-item-header">
+            <div class="status-edit-item-info">
+              <div class="status-edit-item-label" style="color: ${isInvisible ? 'var(--muted)' : status.color}">
+                ${escapeHtml(status.label)}
+              </div>
+              <div class="status-edit-item-color" style="background: ${isInvisible ? 'var(--muted)' : status.color}"></div>
             </div>
-            <span class="badge" style="color:${status.color}">Active status</span>
-            ${imageMarkup}
+            <div class="status-edit-item-actions">
+              ${canEdit ? `
+                <button class="icon-button" data-action="edit-status" data-id="${status.id}" title="Edit">
+                  <i class="fa-solid fa-pen"></i>
+              </button>
+              ` : ''}
+              ${canDelete ? `
+                <button class="icon-button danger" data-action="delete-status" data-id="${status.id}" title="Delete">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              ` : ''}
+            </div>
+          </div>
+          ${status.image ? `
+            <div class="status-edit-item-image">
+              ${imagePreview}
+            </div>
+          ` : ''}
+        </div>
+        <div class="status-edit-item-reorder">
+          ${canMoveUp ? `
+            <button class="icon-button small" data-action="move-up" data-id="${status.id}" title="Move up">
+              <i class="fa-solid fa-chevron-up"></i>
+            </button>
+          ` : '<div class="status-edit-spacer"></div>'}
+          ${canMoveDown ? `
+            <button class="icon-button small" data-action="move-down" data-id="${status.id}" title="Move down">
+              <i class="fa-solid fa-chevron-down"></i>
+            </button>
+          ` : '<div class="status-edit-spacer"></div>'}
+        </div>
           </div>
         `;
-      })
-      .join("");
+  }).join("");
+}
+
+// Use event delegation with a single listener
+let statusEditListHandler = null;
+
+function bindStatusEditListEvents() {
+  if (!elements.statusEditList) return;
+  
+  // Remove old listener if it exists
+  if (statusEditListHandler) {
+    elements.statusEditList.removeEventListener("click", statusEditListHandler);
   }
-  elements.statusSummary.textContent = state.statuses.length
-    ? `${state.statuses.length} saved`
-    : "No statuses";
+  
+  // Create new handler
+  statusEditListHandler = (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    
+    const action = button.dataset.action;
+    const id = button.dataset.id;
+    
+    if (action === "edit-status") {
+      closeStatusEditModal();
+      openStatusModal(true, id);
+    } else if (action === "delete-status") {
+      const status = state.statuses.find(s => s.id === id);
+      if (status && window.confirm(`Are you sure you want to delete "${status.label}"?`)) {
+        state.statuses = state.statuses.filter(s => s.id !== id);
+        if (state.currentStatus === id) {
+          state.currentStatus = "invisible";
+        }
+        saveState();
+        renderStatusSelector();
+        renderStatusDisplay();
+        renderStatusEditList();
+        bindStatusEditListEvents();
+      }
+    } else if (action === "move-up") {
+      const index = state.statuses.findIndex(s => s.id === id);
+      if (index > 0) {
+        [state.statuses[index - 1], state.statuses[index]] = [state.statuses[index], state.statuses[index - 1]];
+        saveState();
+        renderStatusEditList();
+        bindStatusEditListEvents();
+      }
+    } else if (action === "move-down") {
+      const index = state.statuses.findIndex(s => s.id === id);
+      if (index >= 0 && index < state.statuses.length - 1) {
+        [state.statuses[index], state.statuses[index + 1]] = [state.statuses[index + 1], state.statuses[index]];
+        saveState();
+        renderStatusEditList();
+        bindStatusEditListEvents();
+      }
+    }
+  };
+  
+  // Add new listener
+  elements.statusEditList.addEventListener("click", statusEditListHandler);
 }
 
 function renderInsights() {
   const today = getTodayISO();
+  const todayDate = new Date(today + "T00:00:00");
+  const rangeEnd = new Date(todayDate);
+  rangeEnd.setDate(rangeEnd.getDate() + INSIGHT_RANGE_DAYS);
+  
   const upcomingEvents = state.events.filter((event) => {
     if (event.priority === "normal") return false;
-    return isWithinDays(event.date, today, INSIGHT_RANGE_DAYS);
+    
+    // Check if event occurs on original date or any date within range (for repeating events)
+    let checkDate = new Date(todayDate);
+    for (let i = 0; i <= INSIGHT_RANGE_DAYS; i++) {
+      const dateStr = checkDate.toISOString().slice(0, 10);
+      if (shouldEventAppearOnDate(event, dateStr)) {
+        return true;
+      }
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
+    return false;
   });
   const upcomingTodos = state.todos.filter((todo) => {
     if (todo.completed) return false;
     if (!todo.dueDate) return false;
     return isWithinDays(todo.dueDate, today, INSIGHT_RANGE_DAYS);
   });
-  elements.urgentEvents.innerHTML = upcomingEvents.length
-    ? upcomingEvents
-        .sort(sortEventsByDate)
-        .map((event) => buildInsightItem(event.title, event.date, event.startTime))
+  // For insights, show the next occurrence of each event
+  const eventsWithNextDate = upcomingEvents.map((event) => {
+    let checkDate = new Date(todayDate);
+    let nextDate = null;
+    for (let i = 0; i <= INSIGHT_RANGE_DAYS && !nextDate; i++) {
+      const dateStr = checkDate.toISOString().slice(0, 10);
+      if (shouldEventAppearOnDate(event, dateStr)) {
+        nextDate = dateStr;
+      }
+      checkDate.setDate(checkDate.getDate() + 1);
+    }
+    return { ...event, nextDate: nextDate || event.date };
+  }).filter(e => e.nextDate);
+  
+  elements.urgentEvents.innerHTML = eventsWithNextDate.length
+    ? eventsWithNextDate
+        .sort((a, b) => a.nextDate.localeCompare(b.nextDate))
+        .map((event) => buildInsightItem(event.title, event.nextDate, event.startTime))
         .join("")
     : `<div class="empty-state">No urgent events in the next ${INSIGHT_RANGE_DAYS} days.</div>`;
   elements.dueSoon.innerHTML = upcomingTodos.length
@@ -462,7 +1020,7 @@ function renderInsights() {
 
 function renderMetrics() {
   const today = getTodayISO();
-  const todaysEvents = state.events.filter((event) => event.date === today);
+  const todaysEvents = state.events.filter((event) => shouldEventAppearOnDate(event, today));
   const focusCount =
     todaysEvents.filter((event) => event.priority !== "normal").length +
     state.todos.filter((todo) => {
@@ -484,7 +1042,10 @@ function buildEventCard(event) {
   const safeCalendar = escapeHtml(event.calendar || "Calendar");
   const safeVisibility = escapeHtml(event.visibility || "Default");
   const safeReminder = escapeHtml(event.reminder || "None");
-  const safeRepeat = escapeHtml(event.repeat || "None");
+  let safeRepeat = escapeHtml(event.repeat || "None");
+  if (event.repeat === "Custom" && event.repeatDays && event.repeatDays.length > 0) {
+    safeRepeat = `Custom (${event.repeatDays.join(", ")})`;
+  }
   return `
     <div class="event-card ${event.priority} ${status.status}" data-id="${event.id}" style="border-left-color:${event.color}">
       <div class="event-top">
@@ -503,13 +1064,6 @@ function buildEventCard(event) {
         ${safeLocation ? `<span><i class="fa-solid fa-location-dot"></i> ${safeLocation}</span>` : ""}
         ${safeGuests ? `<span><i class="fa-solid fa-user-group"></i> ${safeGuests}</span>` : ""}
       </div>
-      <div class="event-meta">
-        <span class="badge">${safeCalendar}</span>
-        <span class="badge">${safeVisibility}</span>
-        <span class="badge">${safeReminder}</span>
-        <span class="badge">${safeRepeat}</span>
-      </div>
-      <span class="status-pill">${status.label}</span>
     </div>
   `;
 }
@@ -517,6 +1071,10 @@ function buildEventCard(event) {
 function buildTodoCard(todo) {
   const status = getTodoStatus(todo);
   const link = safeUrl(todo.link);
+  const titleContent = escapeHtml(todo.title);
+  const titleElement = link 
+    ? `<a href="${link}" target="_blank" rel="noreferrer" class="todo-title-link">${titleContent}</a>`
+    : `<div class="todo-title">${titleContent}</div>`;
   return `
     <div class="todo-card ${todo.completed ? "completed" : ""} ${todo.priority}" data-id="${todo.id}">
       <div class="todo-top">
@@ -533,11 +1091,8 @@ function buildTodoCard(todo) {
           </button>
         </div>
       </div>
-      <div class="todo-title">${escapeHtml(todo.title)}</div>
+      ${titleElement}
       ${todo.notes ? `<div class="todo-meta">${escapeHtml(todo.notes)}</div>` : ""}
-      ${link ? `<a class="badge" href="${link}" target="_blank" rel="noreferrer">Open link</a>` : ""}
-      <span class="badge">${escapeHtml(todo.priority)}</span>
-      <div class="todo-status">${status.label}</div>
     </div>
   `;
 }
@@ -599,6 +1154,7 @@ function getEventFormData() {
     visibility: elements.eventVisibility.value,
     reminder: elements.eventReminder.value,
     repeat: elements.eventRepeat.value,
+    repeatDays: elements.eventRepeat.value === "Custom" ? getCustomRepeatDays() : null,
     location: elements.eventLocation.value.trim(),
     link: elements.eventLink.value.trim(),
     guests: elements.eventGuests.value.trim(),
@@ -632,6 +1188,32 @@ function clearEventForm() {
   elements.eventColor.value = colorPalette[0];
   elements.eventStart.disabled = false;
   elements.eventEnd.disabled = false;
+  if (elements.customRepeatDays) {
+    elements.customRepeatDays.style.display = "none";
+    clearCustomRepeatDays();
+  }
+}
+
+function getCustomRepeatDays() {
+  if (!elements.customRepeatDays) return [];
+  const checkboxes = elements.customRepeatDays.querySelectorAll('input[type="checkbox"]:checked');
+  return Array.from(checkboxes).map(cb => cb.dataset.day);
+}
+
+function setCustomRepeatDays(days) {
+  if (!elements.customRepeatDays) return;
+  const checkboxes = elements.customRepeatDays.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach(cb => {
+    cb.checked = days.includes(cb.dataset.day);
+  });
+}
+
+function clearCustomRepeatDays() {
+  if (!elements.customRepeatDays) return;
+  const checkboxes = elements.customRepeatDays.querySelectorAll('input[type="checkbox"]');
+  checkboxes.forEach(cb => {
+    cb.checked = false;
+  });
 }
 
 function clearTodoForm() {
@@ -652,7 +1234,15 @@ function fillEventForm(id) {
   elements.eventCalendar.value = event.calendar;
   elements.eventVisibility.value = event.visibility;
   elements.eventReminder.value = event.reminder;
-  elements.eventRepeat.value = event.repeat;
+  elements.eventRepeat.value = event.repeat || "None";
+  if (elements.customRepeatDays) {
+    elements.customRepeatDays.style.display = event.repeat === "Custom" ? "block" : "none";
+    if (event.repeat === "Custom" && event.repeatDays) {
+      setCustomRepeatDays(event.repeatDays);
+    } else {
+      clearCustomRepeatDays();
+    }
+  }
   elements.eventLocation.value = event.location;
   elements.eventLink.value = event.link;
   elements.eventGuests.value = event.guests;
@@ -660,6 +1250,55 @@ function fillEventForm(id) {
   elements.eventColor.value = event.color;
   elements.eventStart.disabled = event.allDay;
   elements.eventEnd.disabled = event.allDay;
+  openEventModal(true);
+}
+
+function openEventModal(isEdit = false) {
+  if (!elements.eventModal) return;
+  
+  if (isEdit) {
+    if (elements.eventModalTitle) elements.eventModalTitle.textContent = "Edit event";
+    if (elements.eventFormSubmitText) elements.eventFormSubmitText.textContent = "Save changes";
+  } else {
+    if (elements.eventModalTitle) elements.eventModalTitle.textContent = "Create event";
+    if (elements.eventFormSubmitText) elements.eventFormSubmitText.textContent = "Save event";
+    clearEventForm();
+  }
+  
+  elements.eventModal.classList.add("visible");
+  elements.eventModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeEventModal() {
+  if (!elements.eventModal) return;
+  elements.eventModal.classList.remove("visible");
+  elements.eventModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function openEventModal(isEdit = false) {
+  if (!elements.eventModal) return;
+  
+  if (isEdit) {
+    elements.eventModalTitle.textContent = "Edit event";
+    elements.eventFormSubmitText.textContent = "Save changes";
+  } else {
+    elements.eventModalTitle.textContent = "Create event";
+    elements.eventFormSubmitText.textContent = "Save event";
+    clearEventForm();
+  }
+  
+  elements.eventModal.classList.add("visible");
+  elements.eventModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeEventModal() {
+  if (!elements.eventModal) return;
+  elements.eventModal.classList.remove("visible");
+  elements.eventModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
 }
 
 function fillTodoForm(id) {
@@ -672,6 +1311,31 @@ function fillTodoForm(id) {
   elements.todoLink.value = todo.link;
   elements.todoPriority.value = todo.priority;
   elements.todoNotes.value = todo.notes;
+  openTodoModal(true);
+}
+
+function openTodoModal(isEdit = false) {
+  if (!elements.todoModal) return;
+  
+  if (isEdit) {
+    if (elements.todoModalTitle) elements.todoModalTitle.textContent = "Edit task";
+    if (elements.todoFormSubmitText) elements.todoFormSubmitText.textContent = "Save changes";
+  } else {
+    if (elements.todoModalTitle) elements.todoModalTitle.textContent = "Add task";
+    if (elements.todoFormSubmitText) elements.todoFormSubmitText.textContent = "Save task";
+    clearTodoForm();
+  }
+  
+  elements.todoModal.classList.add("visible");
+  elements.todoModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeTodoModal() {
+  if (!elements.todoModal) return;
+  elements.todoModal.classList.remove("visible");
+  elements.todoModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
 }
 
 function toggleTodo(id) {
@@ -875,6 +1539,78 @@ function getTodayISO() {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60000;
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function getTomorrowISO() {
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const offset = tomorrow.getTimezoneOffset() * 60000;
+  return new Date(tomorrow.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function shouldEventAppearOnDate(event, dateString) {
+  // If no repeat, check exact date match
+  if (!event.repeat || event.repeat === "None") {
+    return event.date === dateString;
+  }
+
+  const eventDate = new Date(event.date + "T00:00:00");
+  const checkDate = new Date(dateString + "T00:00:00");
+  
+  // Event must not be in the future (can't appear before it's created)
+  if (checkDate < eventDate) {
+    return false;
+  }
+
+  // Handle different repeat patterns
+  switch (event.repeat) {
+    case "Daily":
+      // Show every day from the event date onwards
+      return true;
+
+    case "Weekly":
+      // Show on the same day of the week as the original event
+      return eventDate.getDay() === checkDate.getDay();
+
+    case "Monthly":
+      // Show on the same day of the month
+      return eventDate.getDate() === checkDate.getDate();
+
+    case "Custom":
+      // Show only on selected days of the week
+      if (!event.repeatDays || event.repeatDays.length === 0) {
+        return false;
+      }
+      const dayNameMap = {
+        "Sun": 0, "Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6
+      };
+      const todayDayName = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][checkDate.getDay()];
+      return event.repeatDays.includes(todayDayName);
+
+    default:
+      return event.date === dateString;
+  }
+}
+
+function getDayOfWeekName(dayIndex) {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return days[dayIndex];
+}
+
+function updateFileInputLabel() {
+  const fileInput = elements.statusImage;
+  const label = document.getElementById("status-image-label");
+  if (!fileInput || !label) return;
+  
+  if (fileInput.files && fileInput.files.length > 0) {
+    const fileName = fileInput.files[0].name;
+    label.classList.add("has-file");
+    label.querySelector("span").textContent = fileName.length > 20 ? fileName.substring(0, 20) + "..." : fileName;
+  } else {
+    label.classList.remove("has-file");
+    label.querySelector("span").textContent = "Choose image...";
+  }
 }
 
 function getSampleData() {

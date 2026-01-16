@@ -18,6 +18,8 @@
   </head>
   <body data-theme="aurora">
     <div class="app">
+      <div class="app-layout">
+        <div class="left-section">
       <header class="app-header">
         <div class="branding">
           <div class="logo">Orbit</div>
@@ -70,21 +72,242 @@
           <div class="panel-header">
             <div>
               <h2>Today's schedule</h2>
-              <p>Only your local-day events are surfaced here.</p>
             </div>
             <div class="panel-badge">
               <i class="fa-solid fa-calendar-day"></i>
               <span id="calendar-summary">No events</span>
             </div>
+            <button class="icon-button add-event-btn" id="add-event-btn" title="Add new event">
+              <i class="fa-solid fa-plus"></i>
+            </button>
           </div>
           <div class="panel-body calendar-body">
-            <div class="calendar-grid">
-              <div class="form-card">
+            <div class="list-card">
+              <div class="card-header">
+                <h3>Today</h3>
+                <p id="event-subtitle"></p>
+              </div>
+              <div class="list-header">
+                <span class="list-count" id="event-count">0 events</span>
+              </div>
+              <div id="event-list" class="scrollable"></div>
+            </div>
+            
+            <div class="list-card tomorrow-card">
+              <div class="card-header">
+                <h3>Tomorrow</h3>
+                <p id="tomorrow-subtitle"></p>
+              </div>
+              <div class="list-header">
+                <span class="list-count" id="tomorrow-event-count">0 events</span>
+              </div>
+              <div id="tomorrow-event-list" class="scrollable"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="todo-column" class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>To-do command list</h2>
+            </div>
+            <div class="panel-badge">
+              <i class="fa-solid fa-list-check"></i>
+              <span id="todo-summary">No tasks</span>
+            </div>
+            <button class="icon-button add-todo-btn" id="add-todo-btn" title="Add new task">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+          <div class="panel-body todo-body">
+            <div class="list-card">
                 <div class="card-header">
-                  <h3>Create event</h3>
-                  <p>Build out rich details like a full calendar.</p>
+                <h3>Task queue</h3>
+              </div>
+              <div class="list-header">
+                <span class="list-count" id="todo-count">0 tasks</span>
+              </div>
+              <div id="todo-list" class="scrollable"></div>
+            </div>
+          </div>
+        </section>
+          </main>
+        </div>
+
+        <section id="right-column" class="split split-vertical">
+          <section id="status-panel" class="panel">
+            <div class="panel-body">
+              <div class="status-controls">
+                <button class="icon-button add-status-btn" id="add-status-btn" title="Add new status">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+                <button class="icon-button edit-status-btn" id="edit-status-btn" title="Edit statuses">
+                  <i class="fa-solid fa-pen"></i>
+                </button>
+                <div class="status-selector-inline">
+                  <select id="status-selector" class="status-selector">
+                    <option value="invisible">Invisible</option>
+                  </select>
                 </div>
-                <form id="event-form" class="form-grid">
+              </div>
+              <div id="status-display" class="status-display">
+                <div class="status-display-content">
+                  <div class="status-display-image"></div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section id="insights-panel" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Upcoming highlights</h2>
+              </div>
+              <div class="panel-badge">
+                <i class="fa-solid fa-location-arrow"></i>
+                <span id="insight-summary">No upcoming items</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="insight-group">
+                <h3>Urgent &amp; important events</h3>
+                <div id="urgent-events" class="insight-list"></div>
+              </div>
+              <div class="insight-group">
+                <h3>Due dates approaching</h3>
+                <div id="due-soon" class="insight-list"></div>
+              </div>
+            </div>
+          </section>
+
+          <section id="notes-panel" class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Notes &amp; reminders</h2>
+              </div>
+              <div class="panel-badge">
+                <i class="fa-solid fa-pen-nib"></i>
+                <span id="notes-summary">Autosaved</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <textarea
+                id="notes-input"
+                class="notes-area"
+                rows="12"
+                placeholder="Type reminders, ideas, quick notes..."
+              ></textarea>
+            </div>
+          </section>
+        </section>
+      </div>
+    </div>
+
+    <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+    <!-- Todo Add/Edit Modal -->
+    <div id="todo-modal" class="modal" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="todo-modal-title">Add task</h2>
+          <button class="icon-button modal-close" id="todo-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="todo-form" class="form-grid">
+          <input type="hidden" id="todo-id" />
+          <label class="field span-2">
+            Task
+            <input id="todo-title" type="text" placeholder="Outline chapter 5" required />
+          </label>
+          <label class="field">
+            Start date
+            <input id="todo-start" type="date" />
+          </label>
+          <label class="field">
+            Due date
+            <input id="todo-due" type="date" />
+          </label>
+          <label class="field span-2">
+            Reference link
+            <input id="todo-link" type="url" placeholder="https://..." />
+          </label>
+          <label class="field">
+            Priority
+            <select id="todo-priority">
+              <option value="normal">Normal</option>
+              <option value="important">Important</option>
+              <option value="urgent">Urgent</option>
+            </select>
+          </label>
+          <label class="field span-2">
+            Notes
+            <textarea id="todo-notes" rows="3" placeholder="Requirements, notes, blockers..."></textarea>
+          </label>
+          <div class="modal-actions span-2">
+            <button class="primary" type="submit">
+              <i class="fa-solid fa-plus"></i>
+              <span id="todo-form-submit-text">Save task</span>
+            </button>
+            <button class="ghost" id="todo-clear" type="button">Clear</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Status Add/Edit Modal -->
+    <div id="status-modal" class="modal" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content">
+        <div class="modal-header">
+          <h2 id="status-modal-title">Add new status</h2>
+          <button class="icon-button modal-close" id="status-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="status-form" class="status-form">
+          <input type="hidden" id="status-edit-id" />
+          <label class="field">
+            Label
+            <input id="status-label" type="text" placeholder="Focused" required />
+          </label>
+          <label class="field">
+            Color
+            <input id="status-color" type="color" value="#22c55e" />
+          </label>
+          <label class="field">
+            Image
+            <div class="file-input-wrapper">
+              <label for="status-image" class="file-input-label" id="status-image-label">
+                <i class="fa-solid fa-image"></i>
+                <span>Choose image...</span>
+              </label>
+              <input id="status-image" type="file" accept="image/*" />
+            </div>
+          </label>
+          <div class="modal-actions">
+            <button class="primary" type="submit" id="status-form-submit">
+              <i class="fa-solid fa-plus"></i>
+              <span id="status-form-submit-text">Add status</span>
+            </button>
+            <button class="ghost" type="button" id="status-form-cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Event Add/Edit Modal -->
+    <div id="event-modal" class="modal" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-large">
+        <div class="modal-header">
+          <h2 id="event-modal-title">Create event</h2>
+          <button class="icon-button modal-close" id="event-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <form id="event-form" class="form-grid event-form-modal">
                   <input type="hidden" id="event-id" />
                   <label class="field span-2">
                     Title
@@ -149,8 +372,44 @@
                       <option value="Daily">Daily</option>
                       <option value="Weekly">Weekly</option>
                       <option value="Monthly">Monthly</option>
+              <option value="Custom">Custom days</option>
                     </select>
                   </label>
+          <div id="custom-repeat-days" class="custom-repeat-days" style="display: none;">
+            <label class="field span-2">
+              <span style="font-size: 12px; color: var(--muted); margin-bottom: 8px; display: block;">Select days:</span>
+              <div class="day-selector">
+                <label class="day-checkbox">
+                  <input type="checkbox" value="monday" data-day="Mon" />
+                  <span>Mon</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="tuesday" data-day="Tue" />
+                  <span>Tue</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="wednesday" data-day="Wed" />
+                  <span>Wed</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="thursday" data-day="Thu" />
+                  <span>Thu</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="friday" data-day="Fri" />
+                  <span>Fri</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="saturday" data-day="Sat" />
+                  <span>Sat</span>
+                </label>
+                <label class="day-checkbox">
+                  <input type="checkbox" value="sunday" data-day="Sun" />
+                  <span>Sun</span>
+                </label>
+              </div>
+            </label>
+          </div>
                   <label class="field span-2">
                     Location
                     <input id="event-location" type="text" placeholder="Studio A or Zoom" />
@@ -174,191 +433,33 @@
                       <div class="color-palette" id="event-color-palette"></div>
                     </div>
                   </label>
-                  <div class="form-actions span-2">
+          <div class="modal-actions span-2">
                     <button class="primary" type="submit">
                       <i class="fa-solid fa-plus"></i>
-                      Save event
+              <span id="event-form-submit-text">Save event</span>
                     </button>
-                    <button class="ghost" id="event-clear" type="button">
-                      Clear
-                    </button>
+            <button class="ghost" id="event-clear" type="button">Clear</button>
                   </div>
                 </form>
-              </div>
-
-              <div class="list-card">
-                <div class="card-header">
-                  <h3>Today</h3>
-                  <p id="event-subtitle">Keep the day tight and focused.</p>
-                </div>
-                <div class="list-header">
-                  <span class="list-count" id="event-count">0 events</span>
-                  <span class="list-hint">Hover for details</span>
-                </div>
-                <div id="event-list" class="scrollable"></div>
-              </div>
             </div>
           </div>
-        </section>
 
-        <section id="todo-column" class="panel">
-          <div class="panel-header">
-            <div>
-              <h2>To-do command list</h2>
-              <p>Track tasks with future release dates and due dates.</p>
-            </div>
-            <div class="panel-badge">
-              <i class="fa-solid fa-list-check"></i>
-              <span id="todo-summary">No tasks</span>
-            </div>
-          </div>
-          <div class="panel-body todo-body">
-            <div class="todo-grid">
-              <div class="form-card">
-                <div class="card-header">
-                  <h3>Add task</h3>
-                  <p>Attach start dates, links, and priority.</p>
-                </div>
-                <form id="todo-form" class="form-grid">
-                  <input type="hidden" id="todo-id" />
-                  <label class="field span-2">
-                    Task
-                    <input id="todo-title" type="text" placeholder="Outline chapter 5" required />
-                  </label>
-                  <label class="field">
-                    Start date
-                    <input id="todo-start" type="date" />
-                  </label>
-                  <label class="field">
-                    Due date
-                    <input id="todo-due" type="date" />
-                  </label>
-                  <label class="field span-2">
-                    Reference link
-                    <input id="todo-link" type="url" placeholder="https://..." />
-                  </label>
-                  <label class="field">
-                    Priority
-                    <select id="todo-priority">
-                      <option value="normal">Normal</option>
-                      <option value="important">Important</option>
-                      <option value="urgent">Urgent</option>
-                    </select>
-                  </label>
-                  <label class="field span-2">
-                    Notes
-                    <textarea id="todo-notes" rows="3" placeholder="Requirements, notes, blockers..."></textarea>
-                  </label>
-                  <div class="form-actions span-2">
-                    <button class="primary" type="submit">
-                      <i class="fa-solid fa-plus"></i>
-                      Save task
-                    </button>
-                    <button class="ghost" id="todo-clear" type="button">
-                      Clear
+    <!-- Status Edit/Manage Modal -->
+    <div id="status-edit-modal" class="modal" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-large">
+        <div class="modal-header">
+          <h2>Manage statuses</h2>
+          <button class="icon-button modal-close" id="status-edit-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
                     </button>
                   </div>
-                </form>
-              </div>
-
-              <div class="list-card">
-                <div class="card-header">
-                  <h3>Task queue</h3>
-                  <p>Stay ahead of both start dates and deadlines.</p>
-                </div>
-                <div class="list-header">
-                  <span class="list-count" id="todo-count">0 tasks</span>
-                  <span class="list-hint">Tap to complete</span>
-                </div>
-                <div id="todo-list" class="scrollable"></div>
+        <div id="status-edit-list" class="status-edit-list"></div>
+        <div class="modal-actions">
+          <button class="ghost" type="button" id="status-edit-modal-close-btn">Done</button>
               </div>
             </div>
-          </div>
-        </section>
-
-        <section id="right-column" class="split split-vertical">
-          <section id="status-panel" class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Status studio</h2>
-                <p>Set quick mood or availability states.</p>
-              </div>
-              <div class="panel-badge">
-                <i class="fa-solid fa-sparkles"></i>
-                <span id="status-summary">No statuses</span>
-              </div>
-            </div>
-            <div class="panel-body">
-              <form id="status-form" class="status-form">
-                <label class="field">
-                  Label
-                  <input id="status-label" type="text" placeholder="Focused" required />
-                </label>
-                <label class="field">
-                  Color
-                  <input id="status-color" type="color" value="#22c55e" />
-                </label>
-                <label class="field">
-                  Image
-                  <input id="status-image" type="file" accept="image/*" />
-                </label>
-                <button class="primary" type="submit">
-                  <i class="fa-solid fa-plus"></i>
-                  Add status
-                </button>
-              </form>
-              <div id="status-list" class="status-list scrollable"></div>
-            </div>
-          </section>
-
-          <section id="insights-panel" class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Upcoming highlights</h2>
-                <p>Urgent events and due dates in view.</p>
-              </div>
-              <div class="panel-badge">
-                <i class="fa-solid fa-location-arrow"></i>
-                <span id="insight-summary">No upcoming items</span>
-              </div>
-            </div>
-            <div class="panel-body">
-              <div class="insight-group">
-                <h3>Urgent &amp; important events</h3>
-                <div id="urgent-events" class="insight-list"></div>
-              </div>
-              <div class="insight-group">
-                <h3>Due dates approaching</h3>
-                <div id="due-soon" class="insight-list"></div>
-              </div>
-            </div>
-          </section>
-
-          <section id="notes-panel" class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Notes &amp; reminders</h2>
-                <p>Capture free-form thoughts instantly.</p>
-              </div>
-              <div class="panel-badge">
-                <i class="fa-solid fa-pen-nib"></i>
-                <span id="notes-summary">Autosaved</span>
-              </div>
-            </div>
-            <div class="panel-body">
-              <textarea
-                id="notes-input"
-                class="notes-area"
-                rows="12"
-                placeholder="Type reminders, ideas, quick notes..."
-              ></textarea>
-            </div>
-          </section>
-        </section>
-      </main>
     </div>
-
-    <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/split.js/dist/split.min.js"></script>
     <script src="app.js"></script>
