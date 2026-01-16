@@ -8,11 +8,18 @@ A high-end, feature-rich productivity application that combines calendar managem
 
 ### 📅 Event Management
 - **Today's Schedule**: View all events scheduled for today with live status indicators
-- **Tomorrow's Preview**: See upcoming events for the next day to help you plan ahead
+- **Tomorrow's Preview**: See upcoming events for the next day with full hover, edit, and delete functionality
+- **Full Calendar View**: 
+  - Click the calendar icon to open a comprehensive weekly view (Sunday through Saturday)
+  - Navigate between past and future weeks with previous/next buttons
+  - "Today" button to quickly jump to the current week
+  - All events displayed with visual priority indicators
+  - Scrollable week grid with detailed event cards
 - **Smart Recurring Events**: 
   - Daily, weekly, and monthly repeats
   - **Custom repeat days**: Select specific days of the week (e.g., Monday, Wednesday, Friday)
   - Events automatically appear on matching days based on repeat patterns
+  - Accurate date tracking ensures events only appear on correct days
 - **Event Details**: 
   - All-day or timed events
   - Priority levels (Normal, Important, Urgent)
@@ -21,19 +28,29 @@ A high-end, feature-rich productivity application that combines calendar managem
   - Meeting links
   - Rich descriptions
   - Custom color coding
+- **Visual Priority Indicators**:
+  - **Urgent events**: Red glow with pulsing animation
+  - **Important events**: Amber/orange glow with pulsing animation
+  - **Running events**: Blue glow indicating live events
+  - Hover tooltips with detailed event information
 
 ### ✅ Task Management
 - **Smart Task Queue**: 
   - **Priority-based sorting**: Tasks sorted by priority (Urgent → Important → Normal) then by due date
   - **Start date filtering**: Tasks not yet started are hidden by default
   - **Completed task management**: Completed tasks move to bottom and automatically disappear after deadline passes
-  - **Overdue warnings**: Incomplete overdue tasks are automatically marked as urgent with visual warnings
+  - **Automatic urgency**: Tasks due today or overdue are automatically marked as urgent
+  - **Overdue warnings**: Incomplete overdue tasks show visual warnings with red highlighting
 - **Task Details**:
   - Start and due dates
   - Priority levels
-  - Reference links (clickable task titles)
+  - Reference links (clickable task titles that open in new tabs)
   - Detailed notes
 - **Full List Toggle**: Option to view all tasks including those that haven't started yet
+- **Visual Priority Indicators**:
+  - **Urgent tasks**: Red glow and highlighting
+  - **Important tasks**: Amber/orange glow and highlighting
+  - Priority-based visual distinction throughout the interface
 
 ### 🎨 Status Tracking
 - **Custom Status System**: 
@@ -72,6 +89,12 @@ A high-end, feature-rich productivity application that combines calendar managem
   - Adjustable panel sizes with visual drag handles
   - Saved layout preferences persist across sessions
   - Three-way split functionality for optimal workspace organization
+  - Drag handles with hover effects for intuitive resizing
+- **Settings Menu**:
+  - Bottom-right corner settings button (three vertical dots)
+  - Quick access to "Load sample day" and "Reset" options
+  - Confirmation dialogs for data-altering actions
+  - Elegant dropdown menu with smooth animations
 
 ### 💾 Data Persistence
 - **Local Storage**: All data (events, tasks, statuses, notes, preferences) is automatically saved to browser localStorage
@@ -181,26 +204,40 @@ productivity/
 4. The event will automatically appear on matching dates
 
 ### Managing Priorities
-- **Urgent**: Red highlighting, appears first in lists
-- **Important**: Orange highlighting, second priority
+- **Urgent**: Red glow with pulsing animation, appears first in lists, tasks due today automatically become urgent
+- **Important**: Amber/orange glow with pulsing animation, second priority
 - **Normal**: Default styling, lowest priority
+- Visual priority indicators work across all views (today, tomorrow, calendar view)
 
 ### Using the Status System
 - Click "Add" to create a new status with label, color, and optional image
 - Click "Edit" to manage all statuses, reorder them, or make changes
 - Select a status from the dropdown to set your current status
 - The status display shows your selected status with its associated image
+- Status images are automatically resized and displayed with proper aspect ratio
+- "Invisible" default status option for when no status is active
 
 ### Task Workflow
 1. **Active Tasks**: Tasks that have started or have no start date
-2. **Overdue Tasks**: Automatically become urgent and show warning badges
-3. **Completed Tasks**: Move to bottom of list, disappear after deadline passes
-4. **Future Tasks**: Hidden by default, visible with "See full list" toggle
+2. **Tasks Due Today**: Automatically marked as urgent with red glow
+3. **Overdue Tasks**: Automatically become urgent and show warning badges
+4. **Completed Tasks**: Move to bottom of list, disappear after deadline passes
+5. **Future Tasks**: Hidden by default, visible with "See full list" toggle
 
 ### Layout Customization
 - Drag the vertical dividers between main sections to adjust widths
 - Drag the horizontal dividers in the right column to resize panels
 - All layout preferences are saved automatically
+- Layout state persists across browser sessions and page reloads
+
+### Using the Calendar View
+1. Click the calendar icon in the "Today's schedule" header
+2. Navigate weeks using the previous/next arrow buttons
+3. Click "Today" to quickly return to the current week
+4. View all events in a weekly grid format (Sunday through Saturday)
+5. Events display with visual priority indicators (glows and colors)
+6. Hover over events to see detailed tooltips
+7. Edit and delete events directly from the calendar view
 
 ## 🎨 Design Philosophy
 
@@ -240,11 +277,12 @@ Potential features for future development:
 - Cloud synchronization
 - Multiple workspace support
 - Export/import functionality
-- Calendar view (month/week)
+- Month view calendar option
 - Task dependencies
 - Time tracking
 - Collaboration features
 - Mobile app version
+- Custom repeat patterns (e.g., "every 2 weeks", "first Monday of month")
 
 ## 📄 License
 

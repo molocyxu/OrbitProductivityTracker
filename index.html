@@ -50,16 +50,6 @@
             Theme
             <select id="theme-select"></select>
           </label>
-          <div class="header-buttons">
-            <button id="load-sample" class="ghost">
-              <i class="fa-solid fa-wand-magic-sparkles"></i>
-              Load sample day
-            </button>
-            <button id="reset-data" class="ghost danger">
-              <i class="fa-solid fa-trash"></i>
-              Reset
-            </button>
-          </div>
           <div class="sync-status">
             <i class="fa-solid fa-bolt"></i>
             Local-only mode
@@ -77,9 +67,14 @@
               <i class="fa-solid fa-calendar-day"></i>
               <span id="calendar-summary">No events</span>
             </div>
-            <button class="icon-button add-event-btn" id="add-event-btn" title="Add new event">
-              <i class="fa-solid fa-plus"></i>
-            </button>
+            <div class="header-actions-buttons">
+              <button class="icon-button view-calendar-btn" id="view-calendar-btn" title="View calendar">
+                <i class="fa-solid fa-calendar"></i>
+              </button>
+              <button class="icon-button add-event-btn" id="add-event-btn" title="Add new event">
+                <i class="fa-solid fa-plus"></i>
+              </button>
+            </div>
           </div>
           <div class="panel-body calendar-body">
             <div class="list-card">
@@ -208,6 +203,50 @@
     </div>
 
     <div id="hover-tooltip" class="hover-tooltip" aria-hidden="true"></div>
+
+    <!-- Settings Menu -->
+    <div class="settings-menu-wrapper">
+      <button class="settings-menu-button" id="settings-menu-button" title="Settings">
+        <i class="fa-solid fa-ellipsis-vertical"></i>
+      </button>
+      <div class="settings-menu-dropdown" id="settings-menu-dropdown">
+        <button class="settings-menu-item" id="load-sample">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Load sample day</span>
+        </button>
+        <button class="settings-menu-item danger" id="reset-data">
+          <i class="fa-solid fa-trash"></i>
+          <span>Reset</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Calendar View Modal -->
+    <div id="calendar-view-modal" class="modal" aria-hidden="true">
+      <div class="modal-overlay"></div>
+      <div class="modal-content modal-content-calendar">
+        <div class="modal-header">
+          <div class="calendar-view-header">
+            <button class="icon-button calendar-nav-btn" id="calendar-prev-week" title="Previous week">
+              <i class="fa-solid fa-chevron-left"></i>
+            </button>
+            <h2 id="calendar-view-week-label">Week of...</h2>
+            <button class="icon-button calendar-nav-btn" id="calendar-next-week" title="Next week">
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+            <button class="icon-button calendar-today-btn" id="calendar-today-btn" title="Go to current week">
+              Today
+            </button>
+          </div>
+          <button class="icon-button modal-close" id="calendar-view-modal-close" aria-label="Close">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="calendar-week-grid" id="calendar-week-grid">
+          <!-- Calendar days will be rendered here -->
+        </div>
+      </div>
+    </div>
 
     <!-- Todo Add/Edit Modal -->
     <div id="todo-modal" class="modal" aria-hidden="true">

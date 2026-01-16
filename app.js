@@ -37,6 +37,7 @@ const defaultState = {
 const elements = {};
 let state = loadState();
 let notesTimer = null;
+let currentCalendarWeek = null; // Stores the start date of the currently viewed week (Sunday)
 
 function loadState() {
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -158,6 +159,14 @@ function cacheElements() {
   elements.statusEditModalCloseBtn = document.getElementById("status-edit-modal-close-btn");
   elements.statusEditList = document.getElementById("status-edit-list");
   elements.addEventBtn = document.getElementById("add-event-btn");
+  elements.viewCalendarBtn = document.getElementById("view-calendar-btn");
+  elements.calendarViewModal = document.getElementById("calendar-view-modal");
+  elements.calendarViewModalClose = document.getElementById("calendar-view-modal-close");
+  elements.calendarWeekGrid = document.getElementById("calendar-week-grid");
+  elements.calendarPrevWeek = document.getElementById("calendar-prev-week");
+  elements.calendarNextWeek = document.getElementById("calendar-next-week");
+  elements.calendarTodayBtn = document.getElementById("calendar-today-btn");
+  elements.calendarViewWeekLabel = document.getElementById("calendar-view-week-label");
   elements.eventModal = document.getElementById("event-modal");
   elements.eventModalClose = document.getElementById("event-modal-close");
   elements.eventModalTitle = document.getElementById("event-modal-title");
@@ -177,6 +186,8 @@ function cacheElements() {
   elements.metricFocus = document.getElementById("metric-focus");
   elements.loadSample = document.getElementById("load-sample");
   elements.resetData = document.getElementById("reset-data");
+  elements.settingsMenuButton = document.getElementById("settings-menu-button");
+  elements.settingsMenuDropdown = document.getElementById("settings-menu-dropdown");
   elements.tooltip = document.getElementById("hover-tooltip");
 }
 
@@ -280,9 +291,9 @@ function initSplitPanels() {
       });
       
       const verticalSplit = Split(["#status-panel", "#insights-panel", "#notes-panel"], {
-        direction: "vertical",
+    direction: "vertical",
         sizes: state.splitSizes.rightColumn || [30, 34, 36],
-        minSize: 160,
+    minSize: 160,
         gutterSize: 12,
         snapOffset: 0,
         expandToMin: false,
@@ -516,6 +527,42 @@ function bindForms() {
     }
   }
 
+  // Calendar view handlers
+  if (elements.viewCalendarBtn) {
+    elements.viewCalendarBtn.addEventListener("click", () => {
+      openCalendarViewModal();
+    });
+  }
+
+  if (elements.calendarViewModalClose) {
+    elements.calendarViewModalClose.addEventListener("click", closeCalendarViewModal);
+  }
+
+  if (elements.calendarViewModal) {
+    const overlay = elements.calendarViewModal.querySelector(".modal-overlay");
+    if (overlay) {
+      overlay.addEventListener("click", closeCalendarViewModal);
+    }
+  }
+
+  if (elements.calendarPrevWeek) {
+    elements.calendarPrevWeek.addEventListener("click", () => {
+      navigateCalendarWeek(-1);
+    });
+  }
+
+  if (elements.calendarNextWeek) {
+    elements.calendarNextWeek.addEventListener("click", () => {
+      navigateCalendarWeek(1);
+    });
+  }
+
+  if (elements.calendarTodayBtn) {
+    elements.calendarTodayBtn.addEventListener("click", () => {
+      goToCurrentWeek();
+    });
+  }
+
   // Todo modal handlers
   if (elements.addTodoBtn) {
     elements.addTodoBtn.addEventListener("click", () => {
@@ -545,7 +592,8 @@ function bindForms() {
 }
 
 function bindLists() {
-  elements.eventList.addEventListener("click", (event) => {
+  // Helper function to handle event card clicks (edit/delete)
+  const handleEventClick = (event) => {
     const actionButton = event.target.closest("[data-action]");
     if (!actionButton) return;
     const action = actionButton.dataset.action;
@@ -563,7 +611,50 @@ function bindLists() {
       renderInsights();
       renderMetrics();
     }
-  });
+  };
+
+  // Helper function to handle event card hover (tooltip)
+  const handleEventHover = {
+    pointerover: (event) => {
+      const card = event.target.closest(".event-card");
+      if (!card) return;
+      const eventData = state.events.find((item) => item.id === card.dataset.id);
+      if (!eventData) return;
+      elements.tooltip.innerHTML = buildEventTooltip(eventData);
+      elements.tooltip.classList.add("visible");
+      positionTooltip(event);
+    },
+    pointermove: (event) => {
+      if (!elements.tooltip.classList.contains("visible")) return;
+      positionTooltip(event);
+    },
+    pointerout: (event) => {
+      const related = event.relatedTarget;
+      if (related && related.closest && related.closest(".event-card")) {
+        return;
+      }
+      elements.tooltip.classList.remove("visible");
+    },
+    pointerleave: () => {
+      elements.tooltip.classList.remove("visible");
+    }
+  };
+
+  // Bind handlers to today's event list
+  elements.eventList.addEventListener("click", handleEventClick);
+  elements.eventList.addEventListener("pointerover", handleEventHover.pointerover);
+  elements.eventList.addEventListener("pointermove", handleEventHover.pointermove);
+  elements.eventList.addEventListener("pointerout", handleEventHover.pointerout);
+  elements.eventList.addEventListener("pointerleave", handleEventHover.pointerleave);
+
+  // Bind handlers to tomorrow's event list
+  if (elements.tomorrowEventList) {
+    elements.tomorrowEventList.addEventListener("click", handleEventClick);
+    elements.tomorrowEventList.addEventListener("pointerover", handleEventHover.pointerover);
+    elements.tomorrowEventList.addEventListener("pointermove", handleEventHover.pointermove);
+    elements.tomorrowEventList.addEventListener("pointerout", handleEventHover.pointerout);
+    elements.tomorrowEventList.addEventListener("pointerleave", handleEventHover.pointerleave);
+  }
 
   elements.todoList.addEventListener("click", (event) => {
     const actionButton = event.target.closest("[data-action]");
@@ -586,54 +677,70 @@ function bindLists() {
       renderMetrics();
     }
   });
-
-
-  elements.eventList.addEventListener("pointerover", (event) => {
-    const card = event.target.closest(".event-card");
-    if (!card) return;
-    const eventData = state.events.find((item) => item.id === card.dataset.id);
-    if (!eventData) return;
-    elements.tooltip.innerHTML = buildEventTooltip(eventData);
-    elements.tooltip.classList.add("visible");
-    positionTooltip(event);
-  });
-
-  elements.eventList.addEventListener("pointermove", (event) => {
-    if (!elements.tooltip.classList.contains("visible")) return;
-    positionTooltip(event);
-  });
-
-  elements.eventList.addEventListener("pointerout", (event) => {
-    const related = event.relatedTarget;
-    if (related && related.closest && related.closest(".event-card")) {
-      return;
-    }
-    elements.tooltip.classList.remove("visible");
-  });
-
-  elements.eventList.addEventListener("pointerleave", () => {
-    elements.tooltip.classList.remove("visible");
-  });
 }
 
 function bindControls() {
-  elements.loadSample.addEventListener("click", () => {
-    const sample = getSampleData();
-    state = { ...state, ...sample };
-    saveState();
-    renderAll();
+  // Settings menu toggle
+  if (elements.settingsMenuButton) {
+    elements.settingsMenuButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (elements.settingsMenuDropdown) {
+        elements.settingsMenuDropdown.classList.toggle("visible");
+      }
+    });
+  }
+
+  // Close settings menu when clicking outside
+  document.addEventListener("click", (e) => {
+    if (elements.settingsMenuDropdown && 
+        elements.settingsMenuButton &&
+        !elements.settingsMenuButton.contains(e.target) &&
+        !elements.settingsMenuDropdown.contains(e.target)) {
+      elements.settingsMenuDropdown.classList.remove("visible");
+    }
   });
 
-  elements.resetData.addEventListener("click", () => {
-    const confirmed = window.confirm("Reset all data for this dashboard?");
-    if (!confirmed) return;
-    state = { ...defaultState, theme: state.theme, currentStatus: "invisible" };
-    saveState();
-    clearEventForm();
-    clearTodoForm();
-    elements.notesInput.value = "";
-    renderAll();
-  });
+  // Load sample day with confirmation
+  if (elements.loadSample) {
+    elements.loadSample.addEventListener("click", () => {
+      const confirmed = window.confirm("Load sample day? This will overwrite all current data.");
+      if (!confirmed) {
+        if (elements.settingsMenuDropdown) {
+          elements.settingsMenuDropdown.classList.remove("visible");
+        }
+        return;
+      }
+      const sample = getSampleData();
+      state = { ...state, ...sample };
+      saveState();
+      renderAll();
+      if (elements.settingsMenuDropdown) {
+        elements.settingsMenuDropdown.classList.remove("visible");
+      }
+    });
+  }
+
+  // Reset data with confirmation
+  if (elements.resetData) {
+    elements.resetData.addEventListener("click", () => {
+      const confirmed = window.confirm("Reset all data for this dashboard?");
+      if (!confirmed) {
+        if (elements.settingsMenuDropdown) {
+          elements.settingsMenuDropdown.classList.remove("visible");
+        }
+        return;
+      }
+      state = { ...defaultState, theme: state.theme, currentStatus: "invisible" };
+      saveState();
+      clearEventForm();
+      clearTodoForm();
+      elements.notesInput.value = "";
+      renderAll();
+      if (elements.settingsMenuDropdown) {
+        elements.settingsMenuDropdown.classList.remove("visible");
+      }
+    });
+  }
 }
 
 function initNotes() {
@@ -1494,7 +1601,8 @@ function getTodoStatus(todo) {
 function ensureOverdueUrgency(todo) {
   if (!todo.completed && todo.dueDate) {
     const today = getTodayISO();
-    if (todo.dueDate < today && todo.priority !== "urgent") {
+    // Mark tasks as urgent if due date has passed or is today
+    if (todo.dueDate <= today && todo.priority !== "urgent") {
       todo.priority = "urgent";
     }
   }
@@ -1661,6 +1769,155 @@ function getTomorrowISO() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const offset = tomorrow.getTimezoneOffset() * 60000;
   return new Date(tomorrow.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function getWeekStartDate(date = null) {
+  const d = date ? new Date(date) : new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day; // Get Sunday of current week
+  const sunday = new Date(d.setDate(diff));
+  const offset = sunday.getTimezoneOffset() * 60000;
+  return new Date(sunday.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function getWeekDates(weekStart) {
+  const start = new Date(weekStart + "T00:00:00");
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(start);
+    date.setDate(start.getDate() + i);
+    const offset = date.getTimezoneOffset() * 60000;
+    dates.push(new Date(date.getTime() - offset).toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+function formatWeekRange(weekStart) {
+  const start = new Date(weekStart + "T00:00:00");
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  
+  const startMonth = start.toLocaleDateString(undefined, { month: "short" });
+  const startDay = start.getDate();
+  const endMonth = end.toLocaleDateString(undefined, { month: "short" });
+  const endDay = end.getDate();
+  const year = start.getFullYear();
+  
+  if (startMonth === endMonth) {
+    return `${startMonth} ${startDay} - ${endDay}, ${year}`;
+  }
+  return `${startMonth} ${startDay} - ${endMonth} ${endDay}, ${year}`;
+}
+
+function openCalendarViewModal() {
+  if (!elements.calendarViewModal) return;
+  
+  // Initialize to current week if not set
+  if (!currentCalendarWeek) {
+    currentCalendarWeek = getWeekStartDate();
+  }
+  
+  renderCalendarWeek();
+  
+  elements.calendarViewModal.classList.add("visible");
+  elements.calendarViewModal.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeCalendarViewModal() {
+  if (!elements.calendarViewModal) return;
+  elements.calendarViewModal.classList.remove("visible");
+  elements.calendarViewModal.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function navigateCalendarWeek(weeks) {
+  if (!currentCalendarWeek) {
+    currentCalendarWeek = getWeekStartDate();
+  }
+  const current = new Date(currentCalendarWeek + "T00:00:00");
+  current.setDate(current.getDate() + (weeks * 7));
+  const offset = current.getTimezoneOffset() * 60000;
+  currentCalendarWeek = new Date(current.getTime() - offset).toISOString().slice(0, 10);
+  renderCalendarWeek();
+}
+
+function goToCurrentWeek() {
+  currentCalendarWeek = getWeekStartDate();
+  renderCalendarWeek();
+}
+
+function renderCalendarWeek() {
+  if (!elements.calendarWeekGrid || !currentCalendarWeek) return;
+  
+  const weekDates = getWeekDates(currentCalendarWeek);
+  const today = getTodayISO();
+  
+  // Update week label
+  if (elements.calendarViewWeekLabel) {
+    elements.calendarViewWeekLabel.textContent = formatWeekRange(currentCalendarWeek);
+  }
+  
+  // Get all events for this week
+  const weekEvents = weekDates.map(date => {
+    return state.events.filter(event => shouldEventAppearOnDate(event, date));
+  });
+  
+  // Day names
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const dayAbbr = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  
+  // Render calendar grid
+  const calendarHTML = weekDates.map((date, index) => {
+    const isToday = date === today;
+    const dateObj = new Date(date + "T00:00:00");
+    const dayName = dayNames[index];
+    const dayAbbrName = dayAbbr[index];
+    const dayNum = dateObj.getDate();
+    const monthName = dateObj.toLocaleDateString(undefined, { month: "short" });
+    const events = weekEvents[index];
+    
+    let eventsHTML = "";
+    if (events.length === 0) {
+      eventsHTML = '<div class="calendar-empty-day">No events</div>';
+    } else {
+      eventsHTML = events.map(event => buildCalendarEventCard(event, date)).join("");
+    }
+    
+    return `<div class="calendar-day-column ${isToday ? "today" : ""}">
+        <div class="calendar-day-header">
+          <div class="calendar-day-name">${dayAbbrName}</div>
+          <div class="calendar-day-number">${dayNum}</div>
+          ${index === 0 ? `<div class="calendar-day-month">${monthName}</div>` : ""}
+        </div>
+        <div class="calendar-day-events">
+          ${eventsHTML}
+        </div>
+      </div>`;
+  }).join("");
+  
+  elements.calendarWeekGrid.innerHTML = calendarHTML;
+}
+
+function buildCalendarEventCard(event, date) {
+  // Create a temporary event object with the date for this specific occurrence
+  const eventForDate = { ...event, date: date };
+  const status = getEventStatus(eventForDate);
+  let timeLabel = "All day";
+  if (!event.allDay && event.startTime && event.endTime) {
+    timeLabel = `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
+  }
+  
+  let locationHTML = "";
+  if (event.location) {
+    locationHTML = `<div class="calendar-event-meta"><i class="fa-solid fa-location-dot"></i> ${escapeHtml(event.location)}</div>`;
+  }
+  
+  return `<div class="calendar-event-item ${event.priority || "normal"} ${status.status}" style="border-left-color:${event.color || "#6c7bff"}">
+      <div class="calendar-event-time">${timeLabel}</div>
+      <div class="calendar-event-title">${escapeHtml(event.title)}</div>
+      ${locationHTML}
+    </div>`;
 }
 
 function shouldEventAppearOnDate(event, dateString) {
