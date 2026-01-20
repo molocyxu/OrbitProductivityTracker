@@ -1174,7 +1174,7 @@ function renderEvents() {
   }
   list.scrollTop = scroll;
   elements.eventCount.textContent = `${todaysEvents.length} event${todaysEvents.length === 1 ? "" : "s"}`;
-  const runningCount = todaysEvents.filter((item) => getEventStatus(item).status === "running").length;
+  const runningCount = todaysEvents.filter((item) => getEventStatus(item, today).status === "running").length;
   elements.eventSubtitle.textContent =
     runningCount > 0 ? `${runningCount} in progress right now` : "No live events right now";
   elements.calendarSummary.textContent = todaysEvents.length
@@ -1655,7 +1655,8 @@ function renderMetrics() {
 }
 
 function buildEventCard(event, dateString = null) {
-  const status = getEventStatus(event);
+  // Use the occurrence date (dateString) for status calculation, not the original event date
+  const status = getEventStatus(event, dateString);
   const timeLabel = event.allDay
     ? "All day"
     : `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
@@ -1994,16 +1995,20 @@ function toggleTodo(id) {
   renderMetrics();
 }
 
-function getEventStatus(event) {
+function getEventStatus(event, occurrenceDate = null) {
   const now = new Date();
   const today = getTodayISO();
-  const eventDate = event.date || today;
+  // For recurring events, use the occurrence date (the specific date being displayed)
+  // For non-recurring events, use the original event date
+  const eventDate = occurrenceDate || event.date || today;
+  
   if (eventDate < today) {
     return { status: "completed", label: "Completed" };
   }
   if (eventDate > today) {
     return { status: "upcoming", label: "Upcoming" };
   }
+  // Only check time-based status if the event is today
   const start = event.allDay
     ? new Date(`${eventDate}T00:00:00`)
     : new Date(`${eventDate}T${event.startTime}`);
@@ -2413,9 +2418,8 @@ function renderCalendarWeek() {
 }
 
 function buildCalendarEventCard(event, date) {
-  // Create a temporary event object with the date for this specific occurrence
-  const eventForDate = { ...event, date: date };
-  const status = getEventStatus(eventForDate);
+  // Use the occurrence date for status calculation
+  const status = getEventStatus(event, date);
   let timeLabel = "All day";
   if (!event.allDay && event.startTime && event.endTime) {
     timeLabel = `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
