@@ -29,6 +29,7 @@ const defaultState = {
   notes: "",
   currentStatus: "invisible",
   showFullTodoList: false,
+  showCompletedTodos: true,
   splitSizes: {
     main: [76, 24],
     calendarTodo: [60, 40],
@@ -237,7 +238,7 @@ function cacheElements() {
   elements.todoCount = document.getElementById("todo-count");
   elements.todoSummary = document.getElementById("todo-summary");
   elements.toggleFullListBtn = document.getElementById("toggle-full-list-btn");
-  elements.toggleFullListText = document.getElementById("toggle-full-list-text");
+  elements.toggleCompletedBtn = document.getElementById("toggle-completed-btn");
   elements.statusForm = document.getElementById("status-form");
   elements.statusLabel = document.getElementById("status-label");
   elements.statusColor = document.getElementById("status-color");
@@ -834,6 +835,15 @@ function bindForms() {
       renderTodos();
     });
   }
+
+  // Toggle completed tasks button
+  if (elements.toggleCompletedBtn) {
+    elements.toggleCompletedBtn.addEventListener("click", () => {
+      state.showCompletedTodos = !state.showCompletedTodos;
+      saveState();
+      renderTodos();
+    });
+  }
 }
 
 function bindLists() {
@@ -1220,7 +1230,7 @@ function renderTodos() {
   
   // Filter and process todos
   let filteredTodos = state.todos.filter((todo) => {
-    // Remove completed tasks that have passed their deadline
+    // Remove completed tasks that have passed their deadline (unless showCompletedTodos is true)
     if (todo.completed && todo.dueDate) {
       const dueDate = new Date(todo.dueDate + "T00:00:00");
       const todayDate = new Date(today + "T00:00:00");
@@ -1228,13 +1238,19 @@ function renderTodos() {
         return false; // Remove completed tasks past deadline
       }
     }
+    
+    // Filter out completed tasks if showCompletedTodos is false
+    if (todo.completed && !state.showCompletedTodos) {
+      return false;
+    }
+    
     return true;
   });
   
   // Filter out tasks that haven't started yet (unless showFullList is enabled)
   if (!state.showFullTodoList) {
     filteredTodos = filteredTodos.filter((todo) => {
-      if (todo.completed) return true; // Always show completed tasks
+      if (todo.completed) return true; // Always show completed tasks (if enabled)
       if (todo.startDate && todo.startDate > today) {
         return false; // Hide not-started tasks
       }
@@ -1289,12 +1305,14 @@ function renderTodos() {
     ? `${activeTodos.length} tasks${overdueCount > 0 ? ` · ${overdueCount} overdue` : ""}`
     : "No tasks";
   
-  // Update toggle button text
-  if (elements.toggleFullListText) {
-    elements.toggleFullListText.textContent = state.showFullTodoList ? "Hide full list" : "See full list";
-  }
+  // Update toggle button states
   if (elements.toggleFullListBtn) {
     elements.toggleFullListBtn.classList.toggle("active", state.showFullTodoList);
+    elements.toggleFullListBtn.title = state.showFullTodoList ? "Hide full task list" : "Show full task list";
+  }
+  if (elements.toggleCompletedBtn) {
+    elements.toggleCompletedBtn.classList.toggle("active", state.showCompletedTodos);
+    elements.toggleCompletedBtn.title = state.showCompletedTodos ? "Hide completed tasks" : "Show completed tasks";
   }
 }
 
@@ -2572,6 +2590,7 @@ async function savePreset(name) {
         currentStatus: state.currentStatus,
         splitSizes: state.splitSizes,
         showFullTodoList: state.showFullTodoList,
+        showCompletedTodos: state.showCompletedTodos,
         theme: state.theme
       }
     };

@@ -125,10 +125,14 @@
               </div>
               <div class="list-header">
                 <span class="list-count" id="todo-count">0 tasks</span>
-                <button class="text-button toggle-full-list-btn" id="toggle-full-list-btn" title="Show all tasks">
-                  <i class="fa-solid fa-list"></i>
-                  <span id="toggle-full-list-text">See full list</span>
-                </button>
+                <div class="todo-toggle-buttons">
+                  <button class="icon-button toggle-full-list-btn" id="toggle-full-list-btn" title="Toggle full task list">
+                    <i class="fa-solid fa-list"></i>
+                  </button>
+                  <button class="icon-button toggle-completed-btn" id="toggle-completed-btn" title="Toggle completed tasks">
+                    <i class="fa-solid fa-check-double"></i>
+                  </button>
+                </div>
               </div>
               <div id="todo-list" class="scrollable"></div>
             </div>

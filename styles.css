@@ -629,8 +629,70 @@ button.ghost.danger:hover {
 .list-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 12px;
   color: var(--muted);
+  gap: 8px;
+}
+
+.todo-toggle-buttons {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toggle-full-list-btn,
+.toggle-completed-btn {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  min-width: 32px !important;
+  font-size: 14px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: var(--text) !important;
+  transition: all var(--transition) !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+
+.toggle-full-list-btn:hover,
+.toggle-completed-btn:hover {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px) !important;
+}
+
+.toggle-full-list-btn.active,
+.toggle-completed-btn.active {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 12px rgba(108, 123, 255, 0.3) !important;
+}
+
+.toggle-full-list-btn.active:hover,
+.toggle-completed-btn.active:hover {
+  background: var(--accent-2) !important;
+  border-color: var(--accent-2) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 16px rgba(108, 123, 255, 0.4) !important;
+}
+
+/* Ensure tooltips are visible - native browser tooltips should work */
+.toggle-full-list-btn,
+.toggle-completed-btn {
+  position: relative;
+}
+
+/* Custom tooltip styling for better visibility */
+.toggle-full-list-btn[title],
+.toggle-completed-btn[title] {
+  cursor: help;
 }
 
 .scrollable {
@@ -1941,7 +2003,7 @@ input[type="color"]:focus {
 .sticky-image {
   position: fixed;
   bottom: 0px;
-  left: 288px;
+  left: 432px;
   z-index: 50;
   height: 120px;
   width: auto;
